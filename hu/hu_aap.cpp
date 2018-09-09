@@ -541,6 +541,17 @@
     }
     */
 
+    HU::ChannelDescriptor* navigationChannel = carInfo.add_channels();
+    navigationChannel->set_channel_id(AA_CH_NAVI);
+    {
+      auto inner = navigationChannel->mutable_navigation_status_service();
+      
+      inner->set_minimum_interval_ms(500);
+      inner->set_type(2);
+    }
+
+
+
     std::string carBTAddress = callbacks.GetCarBluetoothAddress();
     if (carBTAddress.size() > 0)
     {
@@ -917,7 +928,52 @@
       printf("BluetoothAuthData: %s\n",request.DebugString().c_str());
       return 0;
   }
-
+  
+  int HUServer::hu_handle_NaviStatus(int chan, byte * buf, int len) {
+      HU::NAVMessagesStatus request;
+      if (!request.ParseFromArray(buf, len))
+      {
+        loge ("NaviStatus Request");
+        return -1;
+      }
+      else
+      {
+        logd ("NaviStatus Request");
+      }
+      callbacks.HandleNaviStatus(*this, request);
+      return 0;
+  }
+  
+    int HUServer::hu_handle_NaviTurn(int chan, byte * buf, int len) {
+      HU::NAVTurnMessage request;
+      if (!request.ParseFromArray(buf, len))
+      {
+        loge ("NaviTurn Request");
+        return -1;
+      }
+      else
+      {
+        logd ("NaviTurn Request");
+      }
+      callbacks.HandleNaviTurn(*this, request);
+      return 0;
+    }
+    
+    int HUServer::hu_handle_NaviTurnDistance(int chan, byte * buf, int len) {
+      HU::NAVDistanceMessage request;
+      if (!request.ParseFromArray(buf, len))
+      {
+        loge ("NaviTurnDistance Request");
+        return -1;
+      }
+      else
+      {
+        logd ("NaviTurnDistance Request");
+      }
+      callbacks.HandleNaviTurnDistance(*this, request);
+      return 0;
+    }
+     
   int HUServer::iaap_msg_process (int chan, uint16_t msg_type, byte * buf, int len) {
 
     if (ena_log_verbo)
@@ -1054,10 +1110,34 @@
             return hu_handle_MicRequest(chan, buf, len);
           case HU_MEDIA_CHANNEL_MESSAGE::VideoFocusRequest:
             return hu_handle_VideoFocusRequest(chan, buf, len);
-          default:
+	  default:
             loge ("Unknown msg_type: %d", msg_type);
             return (0);
         }
+      }
+      else if (chan == AA_CH_NAVI)
+      {
+          logv ("AA_CH_NAVI");
+          logv ("AA_CH_NAVI msg_type: %04x  len: %d  buf: %p", msg_type, len, buf);
+          hex_dump("AA_CH_NAVI", 80, buf, len); 
+          switch((HU_NAVI_CHANNEL_MESSAGE)msg_type)
+          {
+              case HU_NAVI_CHANNEL_MESSAGE::Status:
+                logv ("AA_CH_NAVI: HU_NAVI_CHANNEL_MESSAGE::Status");
+                hu_handle_NaviStatus(chan, buf, len);
+                return (0);
+              case HU_NAVI_CHANNEL_MESSAGE::Turn:
+                logv ("AA_CH_NAVI: HU_NAVI_CHANNEL_MESSAGE::Turn");
+                hu_handle_NaviTurn(chan, buf, len);
+                return (0);
+              case HU_NAVI_CHANNEL_MESSAGE::TurnDistance:
+                logv ("AA_CH_NAVI: HU_NAVI_CHANNEL_MESSAGE::TurnDistance");
+                hu_handle_NaviTurnDistance(chan, buf, len);
+                return (0);
+              default:
+                loge ("Unknown msg_type: %d", msg_type);
+                return (0);
+          }
       }
     }
 
