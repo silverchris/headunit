@@ -119,6 +119,8 @@ public:
     virtual void DisplayMode(const uint32_t& currentDisplayMode) override;
     virtual void ReverseStatusChanged(const int32_t& reverseStatus) override {}
     virtual void PSMInstallStatusChanged(const uint8_t& psmInstalled) override {}
+    virtual void CameraType(const uint32_t& currentCameraType) override {}
+    virtual void SteeringWheelLocation(const uint32_t& currentSteeringWheelLocation) override {}
 };
 
 class MazdaEventCallbacks : public IHUConnectionThreadEventCallbacks {
