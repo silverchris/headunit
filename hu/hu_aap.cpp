@@ -547,7 +547,11 @@
       auto inner = navigationChannel->mutable_navigation_status_service();
       
       inner->set_minimum_interval_ms(500);
-      inner->set_type(2);
+      auto ImageOptions = inner->mutable_image_options();
+      ImageOptions->set_width(100);
+      ImageOptions->set_height(100);
+      ImageOptions->set_colour_depth_bits(8);
+      inner->set_type(HU::ChannelDescriptor::NavigationStatusService::CUSTOM_IMAGES_SUPPORTED);
     }
 
 

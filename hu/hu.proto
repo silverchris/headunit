@@ -390,7 +390,12 @@ message ChannelDescriptor
         }
 
         required uint32 minimum_interval_ms = 1;
-        required uint32 type = 2;
+        enum CLUSTER_TYPE
+        {
+            CUSTOM_IMAGES_SUPPORTED = 1;
+            IMAGE_CODES_ONLY = 2;
+        }
+        required CLUSTER_TYPE type = 2;
         optional ImageOptions image_options = 3;
     }
     optional NavigationStatusService navigation_status_service = 8;
@@ -694,24 +699,12 @@ message BluetoothAuthData
 {
     optional string data = 1;
 }
-message StartNAVMessages
-{
-    
-}
 
-//32771 (0x8003)?
-message StopNAVMessages
-{
-    
-}
-
-//32771 (0x8003)?
 message NAVMessagesStatus
 {
     optional int32 status = 1;
 }
 
-//32772   (0x8004)
 message NAVTurnMessage
 {
     optional string event_name = 1;
@@ -743,7 +736,7 @@ message NAVTurnMessage
         TURN_DESTINATION = 19;
     }
     optional TURN_EVENT turn_event = 3;
-    optional bytes image = 4; //No idea how to interpret this Maybe maps to existing NavigationStatusService image data
+    optional bytes image = 4; // image in png format
     optional int32 turn_number = 5;
     optional int32 turn_angle = 6;
 }
