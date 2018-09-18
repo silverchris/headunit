@@ -161,6 +161,10 @@ public:
     std::atomic<bool> videoFocus;
     std::atomic<bool> inCall;
     std::atomic<AudioManagerClient::FocusType> audioFocus;
+
+    virtual void HandleNaviStatus(IHUConnectionThreadInterface& stream, const HU::NAVMessagesStatus &request) override;
+    virtual void HandleNaviTurn(IHUConnectionThreadInterface& stream, const HU::NAVTurnMessage &request) override;
+    virtual void HandleNaviTurnDistance(IHUConnectionThreadInterface& stream, const HU::NAVDistanceMessage &request) override;
 };
 
 class MazdaCommandServerCallbacks : public ICommandServerCallbacks

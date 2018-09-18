@@ -64,6 +64,8 @@ public:
   static NaviClient *vbsnavi_client = NULL;
   static TMCClient *tmc_client = NULL;
 
+  NaviData *navi_data = NULL;
+
 void hud_start()
 {
   if (hud_client != NULL)
@@ -86,6 +88,7 @@ void hud_start()
     return;
   }
   printf("HUD dbus connections established\n");
+  navi_data = new NaviData();
   return;
 }
 
@@ -115,6 +118,84 @@ bool hud_installed()
       printf("DBUS: GetHUDIsInstalled failed %s: %s\n", error.name(), error.message());
       return(false);
   }
+}
+
+uint8_t turns[][3] = {
+  {0,0,0}, //TURN_UNKNOWN
+  {0,0,0}, //TURN_DEPART
+  {1,1,0}, //TURN_NAME_CHANGE
+  {4,5,0}, //TURN_SLIGHT_TURN
+  {2,3,0}, //TURN_TURN
+  {11, 9,0}, //TURN_SHARP_TURN
+  {13, 10,0}, //TURN_U_TURN
+  {2,3,0}, //TURN_ON_RAMP
+  {2,3,0}, //TURN_OFF_RAMP
+  {15, 14, 0}, //TURN_FORK
+  {16, 17, 0}, //TURN_MERGE
+  {0,0,0},  //TURN_ROUNDABOUT_ENTER
+  {0,0,0}, // TURN_ROUNDABOUT_EXIT
+  {0,0,0}, //TURN_ROUNDABOUT_ENTER_AND_EXIT (Will have to handle seperatly)
+  {1,1,1}, //TURN_STRAIGHT
+  {0,0,0}, //unused?
+  {0,0,0}, //TURN_FERRY_BOAT
+  {0,0,0}, //TURN_FERRY_TRAIN
+  {0,0,0}, //unused??
+  {33, 34, 8} //TURN_DESTINATION
+};
+
+uint8_t roundabouts_cw[] = {
+  37, //0
+  38, //30
+  39, //60
+  40, //90
+
+};
+uint8_t roundabout(int32_t degrees){
+  return((((degrees + 15) / 30)*30)+37); //+49 for Left hand drive?
+
+}
+
+void hud_update(){
+  uint32_t diricon;
+  if(navi_data->turn_event < 15 && navi_data->turn_event >15){
+        diricon = roundabout(navi_data->turn_angle);
+  }
+  else{
+    int32_t turn_side = navi_data->turn_side-1; //Google starts at 1 for some reason...
+    diricon = turns[navi_data->turn_event][turn_side];
+  }
+
+  ::DBus::Struct< uint32_t, uint16_t, uint8_t, uint16_t, uint8_t, uint8_t > hudDisplayMsg;
+  hudDisplayMsg._1 = diricon;
+  hudDisplayMsg._2 = navi_data->distance*10;
+  hudDisplayMsg._3 = 1; //distance unit 1 = meter?
+  hudDisplayMsg._4 = 0;
+  hudDisplayMsg._5 = 0;
+  hudDisplayMsg._6 = navi_data->previous_msg+1;
+
+  ::DBus::Struct< std::string, uint8_t > guidancePointData;
+  guidancePointData._1 = navi_data->event_name;
+  guidancePointData._2 = navi_data->previous_msg+1;
+
+  navi_data->previous_msg = navi_data->previous_msg+1;
+  if(navi_data->previous_msg == 8){
+    navi_data->previous_msg = 0;
+  }
+
+
+  if (hud_client == NULL)
+    return;
+  try
+  {
+    vbsnavi_client->SetHUDDisplayMsgReq(hudDisplayMsg);
+    tmc_client->SetHUD_Display_Msg2(guidancePointData);
+  }
+  catch(DBus::Error& error)
+  {
+      printf("DBUS: hud_send failed %s: %s\n", error.name(), error.message());
+      return;
+  }
+  return;
 }
 
 void hud_send(uint32_t diricon, uint16_t distance, std::string street, u_int8_t msg){

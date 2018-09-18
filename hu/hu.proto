@@ -711,7 +711,8 @@ message NAVTurnMessage
     enum TURN_SIDE
     {
         TURN_LEFT = 1;
-        TURN_RIGHT = 2; //????
+        TURN_RIGHT = 2;
+        TURN_UNSPECIFIED = 3;
     }
     optional TURN_SIDE turn_side = 2;
     enum TURN_EVENT

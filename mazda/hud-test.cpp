@@ -30,6 +30,17 @@
 
 static void hud_test_func(std::condition_variable& quitcv, std::mutex& quitmutex)
 {
+
+
+}
+
+DBus::Glib::BusDispatcher dispatcher;
+
+int main (int argc, char *argv[])
+{
+  DBus::default_dispatcher = &dispatcher;
+  printf("DBus::Glib::BusDispatcher attached\n");
+
   printf("Connecting to DBUS\n");
   hud_start();
   printf("hud installed %d\n", hud_installed());
@@ -54,40 +65,5 @@ static void hud_test_func(std::condition_variable& quitcv, std::mutex& quitmutex
     {
       msg = 1;
     }
-    {
-        std::unique_lock<std::mutex> lk(quitmutex);
-        if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout)
-        {
-            break;
-        }
-    }
-  }
-
-}
-
-GMainContext* run_on_thread_main_context = nullptr;
-
-int main (int argc, char *argv[])
-{
-  DBus::_init_threading();
-  std::condition_variable quitcv;
-  std::mutex quitmutex;
-  std::thread hud_thread([&quitcv, &quitmutex](){ hud_test_func(quitcv, quitmutex); } );
-  while(true){
-    //Make a new one instead of using the default so we can clean it up each run
-    run_on_thread_main_context = g_main_context_new();
-    //Recreate this each time, it makes the error handling logic simpler
-    DBus::Glib::BusDispatcher dispatcher;
-    dispatcher.attach(run_on_thread_main_context);
-    printf("DBus::Glib::BusDispatcher attached\n");
-
-    DBus::default_dispatcher = &dispatcher;
-
-    quitcv.notify_all();
-
-   hud_thread.join();
-   g_main_context_unref(run_on_thread_main_context);
-   run_on_thread_main_context = nullptr;
-
   }
 }
