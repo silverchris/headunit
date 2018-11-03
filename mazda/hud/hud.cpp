@@ -115,49 +115,52 @@ bool hud_installed()
   }
   catch(DBus::Error& error)
   {
-      printf("DBUS: GetHUDIsInstalled failed %s: %s\n", error.name(), error.message());
+      //printf("DBUS: GetHUDIsInstalled failed %s: %s\n", error.name(), error.message());
       return(false);
   }
 }
 
 uint8_t turns[][3] = {
   {0,0,0}, //TURN_UNKNOWN
-  {0,0,0}, //TURN_DEPART
-  {1,1,0}, //TURN_NAME_CHANGE
-  {4,5,0}, //TURN_SLIGHT_TURN
-  {2,3,0}, //TURN_TURN
-  {11, 9,0}, //TURN_SHARP_TURN
-  {13, 10,0}, //TURN_U_TURN
-  {2,3,0}, //TURN_ON_RAMP
-  {2,3,0}, //TURN_OFF_RAMP
-  {15, 14, 0}, //TURN_FORK
-  {16, 17, 0}, //TURN_MERGE
+  {NaviTurns::FLAG_LEFT,NaviTurns::FLAG_RIGHT,NaviTurns::FLAG}, //TURN_DEPART
+  {NaviTurns::STRAIGHT,NaviTurns::STRAIGHT,NaviTurns::STRAIGHT}, //TURN_NAME_CHANGE
+  {NaviTurns::SLIGHT_LEFT,NaviTurns::SLIGHT_RIGHT,0}, //TURN_SLIGHT_TURN
+  {NaviTurns::LEFT,NaviTurns::RIGHT,0}, //TURN_TURN
+  {NaviTurns::SHARP_LEFT,NaviTurns::SHARP_RIGHT,0}, //TURN_SHARP_TURN
+  {NaviTurns::U_TURN_LEFT, NaviTurns::U_TURN_RIGHT,0}, //TURN_U_TURN
+  {NaviTurns::LEFT,NaviTurns::RIGHT,0}, //TURN_ON_RAMP
+  {NaviTurns::LEFT,NaviTurns::RIGHT,0}, //TURN_OFF_RAMP
+  {NaviTurns::FORK_LEFT, NaviTurns::FORK_RIGHT, 0}, //TURN_FORK
+  {NaviTurns::MERGE_LEFT, NaviTurns::MERGE_RIGHT, 0}, //TURN_MERGE
   {0,0,0},  //TURN_ROUNDABOUT_ENTER
   {0,0,0}, // TURN_ROUNDABOUT_EXIT
   {0,0,0}, //TURN_ROUNDABOUT_ENTER_AND_EXIT (Will have to handle seperatly)
-  {1,1,1}, //TURN_STRAIGHT
+  {NaviTurns::STRAIGHT,NaviTurns::STRAIGHT,NaviTurns::STRAIGHT}, //TURN_STRAIGHT
   {0,0,0}, //unused?
   {0,0,0}, //TURN_FERRY_BOAT
   {0,0,0}, //TURN_FERRY_TRAIN
   {0,0,0}, //unused??
-  {33, 34, 8} //TURN_DESTINATION
+  {NaviTurns::DESTINATION_LEFT, NaviTurns::DESTINATION_RIGHT, NaviTurns::DESTINATION} //TURN_DESTINATION
 };
 
-uint8_t roundabouts_cw[] = {
-  37, //0
-  38, //30
-  39, //60
-  40, //90
-
-};
 uint8_t roundabout(int32_t degrees){
-  return((((degrees + 15) / 30)*30)+37); //+49 for Left hand drive?
+  uint8_t nearest = (((degrees + 15) / 30)*30);
+  uint8_t offset = 37; //+49 for Left hand drive?
+  return(nearest+offset);
+}
 
+int32_t round_to_nearest(int32_t number, int32_t nearest){
+  return (((number + (nearest/2)) / nearest)*nearest);
 }
 
 void hud_update(){
+  if (hud_client == NULL) {
+    //Don't bother with the HUD if we aren't connected via dbus
+    return;
+  }
+
   uint32_t diricon;
-  if(navi_data->turn_event < 15 && navi_data->turn_event >15){
+  if(navi_data->turn_event == 13){
         diricon = roundabout(navi_data->turn_angle);
   }
   else{
