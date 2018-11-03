@@ -165,12 +165,23 @@ void hud_update(){
     diricon = turns[navi_data->turn_event][turn_side];
   }
 
+  uint8_t distance_unit;
+  if(navi_data->distance > 3000){
+    distance_unit = 3;
+    navi_data->distance = navi_data->distance/100;
+  }
+  else{
+    distance_unit = 1;
+    navi_data->distance = (((navi_data->distance + 5) / 10)*10);
+    navi_data->distance = navi_data->distance*10;
+  }
+
   ::DBus::Struct< uint32_t, uint16_t, uint8_t, uint16_t, uint8_t, uint8_t > hudDisplayMsg;
   hudDisplayMsg._1 = diricon;
-  hudDisplayMsg._2 = navi_data->distance*10;
-  hudDisplayMsg._3 = 1; //distance unit 1 = meter?
-  hudDisplayMsg._4 = 0;
-  hudDisplayMsg._5 = 0;
+  hudDisplayMsg._2 = navi_data->distance;
+  hudDisplayMsg._3 = distance_unit; //distance unit 1 = meter?
+  hudDisplayMsg._4 = 0; //Speed limit (Not Used)
+  hudDisplayMsg._5 = 0; //Speed limit units (Not used)
   hudDisplayMsg._6 = navi_data->previous_msg+1;
 
   ::DBus::Struct< std::string, uint8_t > guidancePointData;
@@ -182,39 +193,6 @@ void hud_update(){
     navi_data->previous_msg = 0;
   }
 
-
-  if (hud_client == NULL)
-    return;
-  try
-  {
-    vbsnavi_client->SetHUDDisplayMsgReq(hudDisplayMsg);
-    tmc_client->SetHUD_Display_Msg2(guidancePointData);
-  }
-  catch(DBus::Error& error)
-  {
-      printf("DBUS: hud_send failed %s: %s\n", error.name(), error.message());
-      return;
-  }
-  return;
-}
-
-void hud_send(uint32_t diricon, uint16_t distance, std::string street, u_int8_t msg){
-
-
-  ::DBus::Struct< uint32_t, uint16_t, uint8_t, uint16_t, uint8_t, uint8_t > hudDisplayMsg;
-  hudDisplayMsg._1 = diricon;
-  hudDisplayMsg._2 = distance;
-  hudDisplayMsg._3 = 1; //distance unit 1 = meter?
-  hudDisplayMsg._4 = 0;
-  hudDisplayMsg._5 = 0;
-  hudDisplayMsg._6 = msg;
-
-  ::DBus::Struct< std::string, uint8_t > guidancePointData;
-  guidancePointData._1 = street;
-  guidancePointData._2 = msg;
-
-  if (hud_client == NULL)
-    return;
   try
   {
     vbsnavi_client->SetHUDDisplayMsgReq(hudDisplayMsg);
