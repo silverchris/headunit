@@ -225,9 +225,11 @@ int main (int argc, char *argv[])
 
             std::condition_variable quitcv;
             std::mutex quitmutex;
+            extern std::mutex hudmutex;
 
             std::thread nm_thread([&quitcv, &quitmutex](){ nightmode_thread_func(quitcv, quitmutex); } );
             std::thread gp_thread([&quitcv, &quitmutex](){ gps_thread_func(quitcv, quitmutex); } );
+            std::thread hud_thread([&quitcv, &quitmutex, &hudmutex](){ hud_thread_func(quitcv, quitmutex, hudmutex); } );
 
             /* Start gstreamer pipeline and main loop */
 
@@ -251,6 +253,9 @@ int main (int argc, char *argv[])
 
             printf("waiting for gps_thread\n");
             gp_thread.join();
+
+            printf("waiting for hud_thread\n");
+            hud_thread.join();
 
             printf("shutting down\n");
 

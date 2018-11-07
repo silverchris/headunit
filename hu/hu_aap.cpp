@@ -545,13 +545,13 @@
     navigationChannel->set_channel_id(AA_CH_NAVI);
     {
       auto inner = navigationChannel->mutable_navigation_status_service();
-      
-      inner->set_minimum_interval_ms(500);
-      auto ImageOptions = inner->mutable_image_options();
-      ImageOptions->set_width(100);
-      ImageOptions->set_height(100);
-      ImageOptions->set_colour_depth_bits(8);
-      inner->set_type(HU::ChannelDescriptor::NavigationStatusService::CUSTOM_IMAGES_SUPPORTED);
+
+      inner->set_minimum_interval_ms(1000);
+      //auto ImageOptions = inner->mutable_image_options();
+      //ImageOptions->set_width(100);
+      //ImageOptions->set_height(100);
+      //ImageOptions->set_colour_depth_bits(8);
+      inner->set_type(HU::ChannelDescriptor::NavigationStatusService::IMAGE_CODES_ONLY);
     }
 
 
@@ -932,52 +932,55 @@
       printf("BluetoothAuthData: %s\n",request.DebugString().c_str());
       return 0;
   }
-  
+
   int HUServer::hu_handle_NaviStatus(int chan, byte * buf, int len) {
       HU::NAVMessagesStatus request;
       if (!request.ParseFromArray(buf, len))
       {
-        loge ("NaviStatus Request");
+        logv ("NaviStatus Request");
+        logv(request.DebugString().c_str());
         return -1;
       }
       else
       {
-        logd ("NaviStatus Request");
+        logv ("NaviStatus Request");
       }
       callbacks.HandleNaviStatus(*this, request);
       return 0;
   }
-  
+
     int HUServer::hu_handle_NaviTurn(int chan, byte * buf, int len) {
       HU::NAVTurnMessage request;
       if (!request.ParseFromArray(buf, len))
       {
-        loge ("NaviTurn Request");
+        logv ("NaviTurn Request");
+        logv(request.DebugString().c_str());
         return -1;
       }
       else
       {
-        logd ("NaviTurn Request");
+        logv ("NaviTurn Request");
       }
       callbacks.HandleNaviTurn(*this, request);
       return 0;
     }
-    
+
     int HUServer::hu_handle_NaviTurnDistance(int chan, byte * buf, int len) {
       HU::NAVDistanceMessage request;
       if (!request.ParseFromArray(buf, len))
       {
-        loge ("NaviTurnDistance Request");
+        logv ("NaviTurnDistance Request");
+        logv(request.DebugString().c_str());
         return -1;
       }
       else
       {
-        logd ("NaviTurnDistance Request");
+        logv ("NaviTurnDistance Request");
       }
       callbacks.HandleNaviTurnDistance(*this, request);
       return 0;
     }
-     
+
   int HUServer::iaap_msg_process (int chan, uint16_t msg_type, byte * buf, int len) {
 
     if (ena_log_verbo)
@@ -1123,7 +1126,7 @@
       {
           logv ("AA_CH_NAVI");
           logv ("AA_CH_NAVI msg_type: %04x  len: %d  buf: %p", msg_type, len, buf);
-          hex_dump("AA_CH_NAVI", 80, buf, len); 
+          hex_dumpv("AA_CH_NAVI", 80, buf, len);
           switch((HU_NAVI_CHANNEL_MESSAGE)msg_type)
           {
               case HU_NAVI_CHANNEL_MESSAGE::Status:
