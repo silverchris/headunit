@@ -690,7 +690,7 @@ void MazdaEventCallbacks::HandleNaviTurn(IHUConnectionThreadInterface& stream, c
 
 void MazdaEventCallbacks::HandleNaviTurnDistance(IHUConnectionThreadInterface& stream, const HU::NAVDistanceMessage &request){
     hudmutex.lock();
-    if(navi_data->distance > 1000){
+    if(request.distance() > 1000){
       navi_data->distance_unit = 3;
       navi_data->distance = request.distance()/100;
     }

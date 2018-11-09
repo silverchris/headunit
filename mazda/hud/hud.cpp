@@ -103,7 +103,7 @@ void hud_thread_func(std::condition_variable& quitcv, std::mutex& quitmutex, std
     hudmutex.unlock();
     {
         std::unique_lock<std::mutex> lk(quitmutex);
-        if (quitcv.wait_for(lk, std::chrono::milliseconds(250)) == std::cv_status::no_timeout)
+        if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout)
         {
             break;
         }
