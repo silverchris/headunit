@@ -20,6 +20,7 @@ struct NaviData {
   uint8_t distance_unit;
   int32_t time_until;
   uint8_t previous_msg;
+  uint8_t changed;
 };
 
 enum NaviTurns: uint32_t {
