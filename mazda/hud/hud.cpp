@@ -88,17 +88,18 @@ void hud_thread_func(std::condition_variable& quitcv, std::mutex& quitmutex, std
     guidancePointData._1 = navi_data->event_name;
     guidancePointData._2 = navi_data->previous_msg;
 
-
-
-    try
-    {
-      vbsnavi_client->SetHUDDisplayMsgReq(hudDisplayMsg);
-      tmc_client->SetHUD_Display_Msg2(guidancePointData);
-    }
-    catch(DBus::Error& error)
-    {
+    if(navi_data->changed){
+      try
+      {
+        vbsnavi_client->SetHUDDisplayMsgReq(hudDisplayMsg);
+        tmc_client->SetHUD_Display_Msg2(guidancePointData);
+      }
+      catch(DBus::Error& error)
+      {
         loge("DBUS: hud_send failed %s: %s\n", error.name(), error.message());
         return;
+      }
+	  navi_data->changed = 0;
     }
     hudmutex.unlock();
     {

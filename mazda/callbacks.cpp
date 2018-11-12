@@ -680,6 +680,7 @@ void MazdaEventCallbacks::HandleNaviTurn(IHUConnectionThreadInterface& stream, c
     changed = 1;
   }
   if(changed){
+    navi_data->changed = 1;
     navi_data->previous_msg = navi_data->previous_msg+1;
     if(navi_data->previous_msg == 8){
       navi_data->previous_msg = 1;
@@ -689,16 +690,23 @@ void MazdaEventCallbacks::HandleNaviTurn(IHUConnectionThreadInterface& stream, c
 }
 
 void MazdaEventCallbacks::HandleNaviTurnDistance(IHUConnectionThreadInterface& stream, const HU::NAVDistanceMessage &request){
-    hudmutex.lock();
-    if(request.distance() > 1000){
+  hudmutex.lock();
+  if(request.distance() > 1000){
+    int now_distance = request.distance()/100;
+    if(now_distance != navi_data->distance){
       navi_data->distance_unit = 3;
-      navi_data->distance = request.distance()/100;
+      navi_data->distance = now_distance;
+      navi_data->changed = 1;
     }
-    else{
+  }
+  else{
+    int now_distance = (((request.distance() + 5) / 10)*10)*10;
+    if(now_distance != navi_data->distance){
       navi_data->distance_unit = 1;
-      navi_data->distance = (((request.distance() + 5) / 10)*10);
-      navi_data->distance = navi_data->distance*10;
+      navi_data->distance = now_distance;
+      navi_data->changed = 1;
     }
-    navi_data->time_until = request.time_until();
-    hudmutex.unlock();
+  }
+  navi_data->time_until = request.time_until();
+  hudmutex.unlock();
 }
