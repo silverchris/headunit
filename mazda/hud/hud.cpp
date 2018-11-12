@@ -88,8 +88,7 @@ void hud_thread_func(std::condition_variable& quitcv, std::mutex& quitmutex, std
     guidancePointData._1 = navi_data->event_name;
     guidancePointData._2 = navi_data->previous_msg;
 
-
-	if(navi_data->changed){
+    if(navi_data->changed){
       try
       {
         vbsnavi_client->SetHUDDisplayMsgReq(hudDisplayMsg);
@@ -101,7 +100,7 @@ void hud_thread_func(std::condition_variable& quitcv, std::mutex& quitmutex, std
         return;
       }
 	  navi_data->changed = 0;
-	}
+    }
     hudmutex.unlock();
     {
         std::unique_lock<std::mutex> lk(quitmutex);
