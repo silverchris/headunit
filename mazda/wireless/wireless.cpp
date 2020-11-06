@@ -37,9 +37,9 @@ void sendMessage(int fd,  google::protobuf::MessageLite &message, uint16_t type)
 
     auto written = write(fd, out, byteSize + 4);
     if (written > -1) {
-        logi("Bytes written: %u\n", written);
+        logd("Bytes written: %u\n", written);
     } else {
-        logi("Could not write data\n");
+        logd("Could not write data\n");
     }
     free(out);
 }
@@ -47,7 +47,7 @@ void sendMessage(int fd,  google::protobuf::MessageLite &message, uint16_t type)
 void handleWifiInfoRequest(int fd, uint8_t *buffer, uint16_t length) {
     HU::WifiInfoRequest msg;
     msg.ParseFromArray(buffer, length);
-    logi("WifiInfoRequest: %s\n", msg.DebugString().c_str());
+    logd("WifiInfoRequest: %s\n", msg.DebugString().c_str());
 
     HU::WifiInfoResponse response;
     response.set_ip_address("192.168.53.1");
@@ -72,22 +72,22 @@ void handleWifiSecurityRequest(int fd, uint8_t *buffer, uint16_t length) {
 void handleWifiInfoRequestResponse(int fd, uint8_t *buffer, uint16_t length) {
     HU::WifiInfoResponse msg;
     msg.ParseFromArray(buffer, length);
-    logi("WifiInfoResponse: %s\n", msg.DebugString().c_str());
+    logd("WifiInfoResponse: %s\n", msg.DebugString().c_str());
 }
 
 void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <std::vector<uint8_t>> &data) {
     char mac[18];
     char pty[100];
     char buf[100];
-    logi("Signal Connected:\n");
-    logi("\tType: %u\n", type);
+    logd("Signal Connected:\n");
+    logd("\tType: %u\n", type);
     std::copy(data._1.begin() + 14, data._1.begin() + 32, mac);
     mac[18] = '\0';
-    logi("\tMAC: %s\n", mac);
-    logi("\tService ID: %u\n", data._1[36]);
+    logd("\tMAC: %s\n", mac);
+    logd("\tService ID: %u\n", data._1[36]);
     if (data._1[36] == 15) {
         std::strncpy(pty, (char *) &data._1[48], 100);
-        logi("\tPTY: %s\n", pty);
+        logd("\tPTY: %s\n", pty);
         int fd = open(pty, O_RDWR | O_NOCTTY | O_SYNC);
         HU::WifiInfoRequest request;
         request.set_ip_address("192.168.53.1");
@@ -95,7 +95,7 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
 
         sendMessage(fd, request, 1);
 
-        logi("PTY opened\n");
+        logd("PTY opened\n");
         ssize_t len = 0;
         while (1) {
             ssize_t i = read(fd, buf, 4);
@@ -103,7 +103,7 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
             if (len >= 4) {
                 uint16_t size = be16toh(*(uint16_t *) buf);
                 uint16_t type = be16toh(*(uint16_t * )(buf + 2));
-                logi("Size: %u, MessageID: %u, left: %u\n", size, type);
+                logd("Size: %u, MessageID: %u, left: %u\n", size, type);
                 if (len >= size + 4) {
                     uint8_t *buffer = (uint8_t *) malloc(size);
                     i = 0;
