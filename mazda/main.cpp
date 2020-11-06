@@ -224,7 +224,7 @@ int main (int argc, char *argv[])
             DBus::Connection serviceBus(SERVICE_BUS_ADDRESS, false);
             serviceBus.register_bus();
 
-            GThread wireless_handle = g_thread_new("wireless", wireless_thread, nullptr);
+            GThread *wireless_handle = g_thread_new("wireless", wireless_thread, nullptr);
 
             hud_start();
 
