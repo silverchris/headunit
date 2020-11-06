@@ -224,7 +224,7 @@ int main (int argc, char *argv[])
             DBus::Connection serviceBus(SERVICE_BUS_ADDRESS, false);
             serviceBus.register_bus();
 
-            wireless_setup(serviceBus);
+            GThread wireless_handle = g_thread_new("wireless", wireless_thread, nullptr);
 
             hud_start();
 
@@ -267,6 +267,7 @@ int main (int argc, char *argv[])
             printf("quitting...\n");
             //wake up night mode  and gps polling threads
             quitcv.notify_all();
+
 
             printf("waiting for nm_thread\n");
             nm_thread.join();

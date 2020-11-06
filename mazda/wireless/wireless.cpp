@@ -25,7 +25,10 @@
 
 #include "hu_uti.h"
 
-void sendMessage(int fd,  google::protobuf::MessageLite &message, uint16_t type) {
+#define SERVICE_BUS_ADDRESS "unix:path=/tmp/dbus_service_socket"
+
+
+void sendMessage(int fd, google::protobuf::MessageLite &message, uint16_t type) {
     int byteSize = message.ByteSize();
     uint16_t sizeOut = htobe16(byteSize);
     uint16_t typeOut = htobe16(type);
@@ -129,9 +132,28 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
     }
 }
 
-static BDSClient *bds_client = NULL;
+void *wireless_thread(void *data) {
+    DBus::Glib::BusDispatcher dispatcher;
+    GMainContext *run_on_thread_main_context = nullptr;
+    static BDSClient *bds_client = NULL;
 
-void wireless_setup(DBus::Connection service_bus) {
-    bds_client = new BDSClient(service_bus, "/com/jci/bds", "com.jci.bds");
+
+    DBus::_init_threading();
+    DBus::default_dispatcher = &dispatcher;
+    run_on_thread_main_context = g_main_context_new();
+    dispatcher.attach(run_on_thread_main_context);
+    DBus::default_dispatcher = &dispatcher;
+    logd("DBus::Glib::BusDispatcher attached\n");
+
+    try {
+        DBus::Connection service_bus(SERVICE_BUS_ADDRESS, false);
+        service_bus.register_bus();
+        bds_client = new BDSClient(service_bus, "/com/jci/bds", "com.jci.bds");
+        GMainLoop *loop = g_main_loop_new(run_on_thread_main_context, TRUE);
+        g_main_loop_run(loop);
+    }
+    catch (DBus::Error &error) {
+        loge("DBUS: Failed to connect to SERVICE bus %s: %s\n", error.name(), error.message());
+        return 1;
+    }
 }
-
