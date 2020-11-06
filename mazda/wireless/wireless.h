@@ -5,6 +5,8 @@
 #ifndef HEADUNIT_WIRELESS_H
 #define HEADUNIT_WIRELESS_H
 #include "../dbus/generated_cmu.h"
+#include "hu.pb.h"
+
 
 class BDSClient : public com::jci::bds_proxy, public DBus::ObjectProxy
 {
@@ -114,7 +116,7 @@ public:
 
 };
 
-void sendMessage(int fd, google::protobuf::Message &message, uint16_t type);
+void sendMessage(int fd, google::protobuf::MessageLite &message, uint16_t type);
 void handleWifiInfoRequest(int fd, uint8_t *buffer, uint16_t length);
 void handleWifiSecurityRequest(int fd, uint8_t *buffer, uint16_t length);
 void handleWifiInfoRequestResponse(int fd, uint8_t *buffer, uint16_t length);
