@@ -6,7 +6,6 @@
 
 #include <dbus/dbus.h>
 #include <dbus-c++/dbus.h>
-#include <dbus-c++/glib-integration.h>
 #include <stdint.h>
 #include <string>
 #include <cstring>
@@ -133,24 +132,18 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
 }
 
 void *wireless_thread(void *data) {
-    DBus::Glib::BusDispatcher dispatcher;
-    GMainContext *run_on_thread_main_context = nullptr;
     static BDSClient *bds_client = NULL;
-
-
+    DBUS::Dispatcher dispatcher;
+    Dbus::default_dispatcher = &dispatcher;
     DBus::_init_threading();
-    DBus::default_dispatcher = &dispatcher;
-    run_on_thread_main_context = g_main_context_new();
-    dispatcher.attach(run_on_thread_main_context);
-    DBus::default_dispatcher = &dispatcher;
+
     logd("DBus::Glib::BusDispatcher attached\n");
 
     try {
         DBus::Connection service_bus(SERVICE_BUS_ADDRESS, false);
         service_bus.register_bus();
         bds_client = new BDSClient(service_bus, "/com/jci/bds", "com.jci.bds");
-        GMainLoop *loop = g_main_loop_new(run_on_thread_main_context, TRUE);
-        g_main_loop_run(loop);
+        dispatcher.enter();
     }
     catch (DBus::Error &error) {
         loge("DBUS: Failed to connect to SERVICE bus %s: %s\n", error.name(), error.message());
