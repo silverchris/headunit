@@ -133,9 +133,8 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
 
 void *wireless_thread(void *data) {
     static BDSClient *bds_client = NULL;
-    DBUS::Dispatcher dispatcher;
-    Dbus::default_dispatcher = &dispatcher;
-    DBus::_init_threading();
+    DBus::Dispatcher dispatcher;
+    DBus::default_dispatcher = &dispatcher;
 
     logd("DBus::Glib::BusDispatcher attached\n");
 
