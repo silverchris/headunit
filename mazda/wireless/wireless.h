@@ -120,6 +120,6 @@ void sendMessage(int fd, google::protobuf::MessageLite &message, uint16_t type);
 void handleWifiInfoRequest(int fd, uint8_t *buffer, uint16_t length);
 void handleWifiSecurityRequest(int fd, uint8_t *buffer, uint16_t length);
 void handleWifiInfoRequestResponse(int fd, uint8_t *buffer, uint16_t length);
-void wireless_thread(void *data);
+void *wireless_thread(void *data);
 
 #endif //HEADUNIT_WIRELESS_H
