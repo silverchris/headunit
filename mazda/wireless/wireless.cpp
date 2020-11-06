@@ -66,15 +66,16 @@ void handleWifiSecurityRequest(int fd, uint8_t *buffer, uint16_t length) {
     response.set_bssid("0c:d9:c1:8f:7f:bb");
     response.set_key("password");
     response.set_security_mode(HU::WifiSecurityReponse_SecurityMode_WPA2_PERSONAL);
-    response.set_access_point_type(HU::WifiSecurityReponse_AccessPointType_STATIC);
+    response.set_access_point_type(HU::WifiSecurityReponse_AccessPointType_DYNAMIC);
 
     sendMessage(fd, response, 3);
 }
 
-void handleWifiInfoRequestResponse(int fd, uint8_t *buffer, uint16_t length) {
+int handleWifiInfoRequestResponse(int fd, uint8_t *buffer, uint16_t length) {
     HU::WifiInfoResponse msg;
     msg.ParseFromArray(buffer, length);
     logd("WifiInfoResponse: %s\n", msg.DebugString().c_str());
+    return msg.Status
 }
 
 void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <std::vector<uint8_t>> &data) {
@@ -99,7 +100,8 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
 
         logd("PTY opened\n");
         ssize_t len = 0;
-        while (1) {
+        int loop = 1;
+        while (loop) {
             ssize_t i = read(fd, buf, 4);
             len += i;
             if (len >= 4) {
@@ -120,7 +122,9 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
                             handleWifiSecurityRequest(fd, buffer, size);
                             break;
                         case 7:
-                            handleWifiInfoRequestResponse(fd, buffer, size);
+                            if(handleWifiInfoRequestResponse(fd, buffer, size) == 0){
+                                loop = 0;
+                            }
                             break;
                         default:
                             break;
