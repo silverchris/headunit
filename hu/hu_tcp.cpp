@@ -32,7 +32,7 @@
       if(strcmp(IpAddress.c_str(), "0.0.0.0") == 0){
           wifi_direct = 1;
       }
-      phoneIpAddress = IpAddress;
+      phoneIpAddress(IpAddress);
 
 
   }
