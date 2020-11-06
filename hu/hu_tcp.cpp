@@ -28,13 +28,10 @@
     }
   }
 
-  HUTransportStreamTCP::HUTransportStreamTCP(std::string& IpAddress){
+  HUTransportStreamTCP::HUTransportStreamTCP(std::string& IpAddress) phoneIpAddress(IpAddress){
       if(strcmp(IpAddress.c_str(), "0.0.0.0") == 0){
           wifi_direct = 1;
       }
-      phoneIpAddress(IpAddress);
-
-
   }
 
   int HUTransportStreamTCP::Write (const byte * buf, int len, int tmo) {
