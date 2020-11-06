@@ -27,6 +27,7 @@
 #include "nm/mzd_nightmode.h"
 #include "gps/mzd_gps.h"
 #include "hud/hud.h"
+#include "wireless/wireless.h"
 
 #include "audio.h"
 #include "main.h"
@@ -222,6 +223,8 @@ int main (int argc, char *argv[])
 
             DBus::Connection serviceBus(SERVICE_BUS_ADDRESS, false);
             serviceBus.register_bus();
+
+            wireless_setup(serviceBus);
 
             hud_start();
 
