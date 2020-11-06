@@ -37,7 +37,7 @@ public:
     virtual void SignalDeviceExtendedSearchResult_cb(const uint32_t& type, const ::DBus::Struct< std::vector< uint8_t > >& data) override {}
     virtual void SignalServiceEnableStatus_cb(const uint32_t& type, const ::DBus::Struct< std::vector< uint8_t > >& data) override {}
     virtual void SignalServiceDisableStatus_cb(const uint32_t& type, const ::DBus::Struct< std::vector< uint8_t > >& data) override {}
-    virtual void SignalConnected_cb(const uint32_t& type, const ::DBus::Struct< std::vector< uint8_t > >& data) override {}
+    virtual void SignalConnected_cb(const uint32_t& type, const ::DBus::Struct< std::vector< uint8_t > >& data);
     virtual void SignalDisconnected_cb(const uint32_t& type, const ::DBus::Struct< std::vector< uint8_t > >& data) override {}
     virtual void SignalServiceFeatures_cb(const uint32_t& type, const ::DBus::Struct< std::vector< uint8_t > >& data) override {}
     virtual void SignalServiceConfiguration_cb(const uint32_t& type, const ::DBus::Struct< std::vector< uint8_t > >& data) override {}
