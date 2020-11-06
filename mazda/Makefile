@@ -39,6 +39,7 @@ SRCS += gps/mzd_gps.cpp
 SRCS += bt/mzd_bluetooth.cpp
 
 SRCS += hud/hud.cpp
+SRCS += wireless/wireless.cpp
 
 SRCS += outputs.cpp
 SRCS += $(TOP)/common/config.cpp

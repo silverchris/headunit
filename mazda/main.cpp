@@ -15,6 +15,7 @@
 #include <sstream>
 #include <fstream>
 #include <algorithm>
+#include <thread>
 
 #include <dbus-c++/dbus.h>
 #include <dbus-c++/glib-integration.h>
@@ -27,6 +28,7 @@
 #include "nm/mzd_nightmode.h"
 #include "gps/mzd_gps.h"
 #include "hud/hud.h"
+#include "wireless/wireless.h"
 
 #include "audio.h"
 #include "main.h"
@@ -223,6 +225,8 @@ int main (int argc, char *argv[])
             DBus::Connection serviceBus(SERVICE_BUS_ADDRESS, false);
             serviceBus.register_bus();
 
+            std::thread wireless_handle(wireless_thread);
+
             hud_start();
 
             MazdaEventCallbacks callbacks(serviceBus, hmiBus);
@@ -264,6 +268,7 @@ int main (int argc, char *argv[])
             printf("quitting...\n");
             //wake up night mode  and gps polling threads
             quitcv.notify_all();
+
 
             printf("waiting for nm_thread\n");
             nm_thread.join();
