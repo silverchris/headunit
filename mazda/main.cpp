@@ -225,7 +225,7 @@ int main (int argc, char *argv[])
             DBus::Connection serviceBus(SERVICE_BUS_ADDRESS, false);
             serviceBus.register_bus();
 
-            pthread_t wireless_pthread;
+            pthread_t *wireless_pthread;
             pthread_create(wireless_pthread, nullptr, wireless_thread, nullptr);
 
             hud_start();
