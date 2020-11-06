@@ -154,6 +154,5 @@ void *wireless_thread(void *data) {
     }
     catch (DBus::Error &error) {
         loge("DBUS: Failed to connect to SERVICE bus %s: %s\n", error.name(), error.message());
-        return 1;
     }
 }
