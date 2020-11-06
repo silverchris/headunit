@@ -75,7 +75,7 @@ int handleWifiInfoRequestResponse(int fd, uint8_t *buffer, uint16_t length) {
     HU::WifiInfoResponse msg;
     msg.ParseFromArray(buffer, length);
     logd("WifiInfoResponse: %s\n", msg.DebugString().c_str());
-    return msg.Status();
+    return msg.get_status();
 }
 
 void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <std::vector<uint8_t>> &data) {
