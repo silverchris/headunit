@@ -15,6 +15,7 @@
 #include <sstream>
 #include <fstream>
 #include <algorithm>
+#include <pthread>
 
 #include <dbus-c++/dbus.h>
 #include <dbus-c++/glib-integration.h>
@@ -223,8 +224,9 @@ int main (int argc, char *argv[])
 
             DBus::Connection serviceBus(SERVICE_BUS_ADDRESS, false);
             serviceBus.register_bus();
-            g_thread_init(nullptr);
-            GThread *wireless_handle = g_thread_new("wireless", wireless_thread, nullptr);
+            
+            pthread_t wireless_pthread;
+            pthread_create(wireless_pthread, nullptr, wireless_thread, nullptr);
 
             hud_start();
 
