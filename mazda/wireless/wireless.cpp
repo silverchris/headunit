@@ -25,7 +25,7 @@
 
 #include "hu_uti.h"
 
-void sendMessage(int fd, google::protobuf::Message &message, uint16_t type) {
+void sendMessage(int fd,  google::protobuf::MessageLite &message, uint16_t type) {
     int byteSize = message.ByteSize();
     uint16_t sizeOut = htobe16(byteSize);
     uint16_t typeOut = htobe16(type);
