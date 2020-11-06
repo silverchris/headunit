@@ -4,6 +4,8 @@
 
 #ifndef HEADUNIT_WIRELESS_H
 #define HEADUNIT_WIRELESS_H
+#include "../dbus/generated_cmu.h"
+
 class BDSClient : public com::jci::bds_proxy, public DBus::ObjectProxy
 {
 public:

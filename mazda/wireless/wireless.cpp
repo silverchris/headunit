@@ -19,7 +19,6 @@
 #include <fcntl.h>
 
 
-#include "../dbus/generated_cmu.h"
 #include "hu.pb.h"
 
 #define LOGTAG "mazda-bt"
