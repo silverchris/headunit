@@ -61,6 +61,8 @@ start_AAwireless()
     echo "====================" >> ${LOGPATH}
 }
 
+iptables -A INPUT -p tcp --dport 30515 -m state --state NEW,ESTABLISHED -j ACCEPT
+
 rm -f /tmp/root/headunit.status /tmp/root/headunit-wireless.status
 
 # prevent conflict by Official AA

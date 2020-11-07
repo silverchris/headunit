@@ -4,6 +4,7 @@
 
 #ifndef HEADUNIT_WIRELESS_H
 #define HEADUNIT_WIRELESS_H
+#include <string>
 #include "../dbus/generated_cmu.h"
 #include "hu.pb.h"
 
@@ -116,10 +117,34 @@ public:
 
 };
 
+class NMSClient : public com::jci::nms_proxy, public DBus::ObjectProxy {
+public:
+    NMSClient(DBus::Connection&connection, const char *path, const char *name): DBus::ObjectProxy(connection, path, name){}
+
+    virtual void InterfaceArrive(const int32_t &ifcId) override {}
+    virtual void InterfaceDeparture(const int32_t &ifcId) override {}
+    virtual void InterfaceChanged(const int32_t &ifcId, const int32_t &changeMask) override {}
+    virtual void InterfaceConnecting(const int32_t &ifcId) override {}
+    virtual void InterfaceDisconnecting(const int32_t &ifcId) override {}
+    virtual void InterfaceConnected(const int32_t &ifcId) override {}
+    virtual void InterfaceDisconnected(const int32_t &ifcId, const int32_t &reason) override {}
+    virtual void WifiScanResultsReady(const int32_t &ifcId) override {}
+    virtual void ConnectResult(const int32_t &ifcId, const int32_t &reqId, const int32_t &result) override {}
+    virtual void InterfaceWiFiModeChanged(const int32_t &ifcId, const int32_t &mode) override {}
+    virtual void WiFiAPClientConnected(const int32_t &ifcId, const std::string &bssid) override {}
+    virtual void WiFiAPClientDisconnected(const int32_t &ifcId, const std::string &bssid) override {}
+    virtual void APOpenInfo(const int32_t &ifcId, const ::DBus::Struct <std::string, uint32_t, int32_t, int32_t> &config) override {}
+    virtual void APWepInfo(const int32_t &ifcId, const ::DBus::Struct<::DBus::Struct < std::string, uint32_t, int32_t, int32_t>, ::DBus::Struct <std::string, std::string, std::string, std::string>>& config) override {}
+    virtual void APWpaInfo(const int32_t &ifcId, const ::DBus::Struct<::DBus::Struct < std::string, uint32_t, int32_t, int32_t>, ::DBus::Struct <int32_t, std::string>>& config) override {}
+    virtual void InterfaceMonitorData(const int32_t &ifcId, const ::DBus::Struct <uint64_t, uint64_t> &statistics) override {}
+    virtual void WifiSignalStrength(const int32_t &ifcId, const uint32_t &strength) override {}
+};
+
 void sendMessage(int fd, google::protobuf::MessageLite &message, uint16_t type);
 void handleWifiInfoRequest(int fd, uint8_t *buffer, uint16_t length);
 void handleWifiSecurityRequest(int fd, uint8_t *buffer, uint16_t length);
 int handleWifiInfoRequestResponse(int fd, uint8_t *buffer, uint16_t length);
+std::string hostapd_config(std::string key);
 void wireless_thread();
 
 #endif //HEADUNIT_WIRELESS_H

@@ -16,7 +16,7 @@
 #include <thread>
 #include <unistd.h>
 #include <fcntl.h>
-
+#include <fstream>
 
 #include "hu.pb.h"
 
@@ -25,6 +25,9 @@
 #include "hu_uti.h"
 
 #define SERVICE_BUS_ADDRESS "unix:path=/tmp/dbus_service_socket"
+
+std::string IP_ADDRESS;
+std::string MAC_ADDRESS;
 
 
 void sendMessage(int fd, google::protobuf::MessageLite &message, uint16_t type) {
@@ -52,8 +55,8 @@ void handleWifiInfoRequest(int fd, uint8_t *buffer, uint16_t length) {
     logd("WifiInfoRequest: %s\n", msg.DebugString().c_str());
 
     HU::WifiInfoResponse response;
-    response.set_ip_address("192.168.53.1");
-    response.set_port(5000);
+    response.set_ip_address(IP_ADDRESS.c_str());
+    response.set_port(30515);
     response.set_status(HU::WifiInfoResponse_Status_STATUS_SUCCESS);
 
     sendMessage(fd, response, 7);
@@ -62,9 +65,9 @@ void handleWifiInfoRequest(int fd, uint8_t *buffer, uint16_t length) {
 void handleWifiSecurityRequest(int fd, uint8_t *buffer, uint16_t length) {
     HU::WifiSecurityReponse response;
 
-    response.set_ssid("MazdaCMU");
-    response.set_bssid("0c:d9:c1:8f:7f:bb");
-    response.set_key("password");
+    response.set_ssid(hostapd_config("ssid").c_str());
+    response.set_bssid(MAC_ADDRESS.c_str());
+    response.set_key(hostapd_config("wpa_passphrase").c_str());
     response.set_security_mode(HU::WifiSecurityReponse_SecurityMode_WPA2_PERSONAL);
     response.set_access_point_type(HU::WifiSecurityReponse_AccessPointType_DYNAMIC);
 
@@ -93,7 +96,7 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
         logd("\tPTY: %s\n", pty);
         int fd = open(pty, O_RDWR | O_NOCTTY | O_SYNC);
         HU::WifiInfoRequest request;
-        request.set_ip_address("192.168.53.1");
+        request.set_ip_address(IP_ADDRESS.c_str());
         request.set_port(30515);
 
         sendMessage(fd, request, 1);
@@ -122,7 +125,7 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
                             handleWifiSecurityRequest(fd, buffer, size);
                             break;
                         case 7:
-                            if(handleWifiInfoRequestResponse(fd, buffer, size) == 0){
+                            if (handleWifiInfoRequestResponse(fd, buffer, size) == 0) {
                                 loop = 0;
                             }
                             break;
@@ -135,8 +138,35 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
     }
 }
 
+std::string hostapd_config(std::string key) {
+    std::ifstream hostapd_file;
+    hostapd_file.open("/tmp/current-session-hostapd.conf");
+
+    if (hostapd_file) {
+        std::string line;
+        size_t pos;
+        while (hostapd_file.good()) {
+            getline(hostapd_file, line); // get line from file
+            if (line[0] != '#') {
+                pos = line.find(key); // search
+                if (pos != std::string::npos) // string::npos is returned if string is not found
+                {
+                    int equalPosition = line.find("=");
+                    std::string value = line.substr(equalPosition + 1).c_str();
+                    return value.c_str();
+                }
+            }
+        }
+        return "";
+    }
+    else {
+        return "";
+    }
+};
+
 void wireless_thread() {
     static BDSClient *bds_client = NULL;
+    static NMSClient *nms_client = NULL;
     DBus::BusDispatcher dispatcher;
     DBus::default_dispatcher = &dispatcher;
 
@@ -146,6 +176,23 @@ void wireless_thread() {
         DBus::Connection service_bus(SERVICE_BUS_ADDRESS, false);
         service_bus.register_bus();
         bds_client = new BDSClient(service_bus, "/com/jci/bds", "com.jci.bds");
+        nms_client = new NMSClient(service_bus, "/com/jci/nms", "com.jci.nms");
+
+        ::DBus::Struct <std::vector<int32_t>> interface_list;
+        int32_t rvalue;
+        nms_client->GetInterfaceList(rvalue, interface_list);
+        ::DBus::Struct <int32_t, int32_t, std::string, std::string, std::string, std::string, std::string, std::string, std::string, std::string, int32_t, int32_t, int32_t, int32_t> interface_params;
+        for (auto const &interface: interface_list._1) {
+            nms_client->GetInterfaceParams(interface, rvalue, interface_params);
+            logd("Interface: %s, MAC: %s, IP: %s\n", interface_params._4.c_str(), interface_params._6.c_str(),
+                 interface_params._5.c_str());
+            if (interface_params._4.compare("wlan0") == 0) {
+                IP_ADDRESS.assign(interface_params._5.c_str());
+                MAC_ADDRESS.assign(interface_params._6.c_str());
+            }
+        }
+
+
         dispatcher.enter();
     }
     catch (DBus::Error &error) {
