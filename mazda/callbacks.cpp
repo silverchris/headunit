@@ -655,6 +655,9 @@ extern NaviData *navi_data;
 extern std::mutex hudmutex;
 
 void MazdaEventCallbacks::HandleNaviStatus(IHUConnectionThreadInterface& stream, const HU::NAVMessagesStatus &request){
+    if (navi_data == nullptr){
+        return;
+    }
   if (request.status() == HU::NAVMessagesStatus_STATUS_STOP) {
     hudmutex.lock();
     navi_data->event_name = "";
@@ -674,6 +677,9 @@ void MazdaEventCallbacks::HandleNaviStatus(IHUConnectionThreadInterface& stream,
 void logUnknownFields(const ::google::protobuf::UnknownFieldSet& fields);
 
 void MazdaEventCallbacks::HandleNaviTurn(IHUConnectionThreadInterface& stream, const HU::NAVTurnMessage &request){
+    if (navi_data == nullptr){
+        return;
+    }
   logw("NAVTurnMessage: turn_side: %d, turn_event: %d, turn_number: %d, turn_angle: %d, event_name: %s", 
       request.turn_side(),
       request.turn_event(),
@@ -716,6 +722,9 @@ void MazdaEventCallbacks::HandleNaviTurn(IHUConnectionThreadInterface& stream, c
 }
 
 void MazdaEventCallbacks::HandleNaviTurnDistance(IHUConnectionThreadInterface& stream, const HU::NAVDistanceMessage &request) {
+    if (navi_data == nullptr){
+        return;
+    }
   hudmutex.lock();
   int now_distance;
   HudDistanceUnit now_unit;
