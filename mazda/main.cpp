@@ -325,6 +325,9 @@ int main (int argc, char *argv[])
                 return ret;
             }
 
+            hmiBus.disconnect();
+            serviceBus.disconnect();
+
             g_main_loop_unref(gst_app.loop);
             gst_app.loop = nullptr;
             g_main_context_unref(run_on_thread_main_context);
