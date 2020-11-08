@@ -34,7 +34,6 @@ SRCS += $(TOP)/common/glib_utils.cpp
 SRCS += $(TOP)/common/command_server.cpp
 SRCS += $(TOP)/common/web++/web++.cpp
 
-SRCS += nm/mzd_nightmode.cpp
 SRCS += gps/mzd_gps.cpp
 SRCS += bt/mzd_bluetooth.cpp
 

@@ -25,7 +25,6 @@
 #include "hu_uti.h"
 #include "hu_aap.h"
 
-#include "nm/mzd_nightmode.h"
 #include "gps/mzd_gps.h"
 #include "hud/hud.h"
 #include "wireless/wireless.h"
@@ -47,42 +46,47 @@ __asm__(".symver realpath1,realpath1@GLIBC_2.11.1");
 gst_app_t gst_app;
 IHUAnyThreadInterface* g_hu = nullptr;
 
-static void nightmode_thread_func(std::condition_variable& quitcv, std::mutex& quitmutex)
-{
-    int nightmode = NM_NO_VALUE;
-    mzd_nightmode_start();
-    //Offset so the GPS and NM thread are not perfectly in sync testing each second
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &quitmutex) {
+    char gpio_value[3];
+    int fd = open("/sys/class/gpio/CAN_Day_Mode/value", O_RDONLY);
+    if (-1 == fd) {
+        loge("Failed to open CAN_Day_Mode gpio value for reading");
+    } else {
+        //Offset so the GPS and NM thread are not perfectly in sync testing each second
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-    while (true)
-    {
-        int nightmodenow = mzd_is_night_mode_set();
+        while (true) {
+            if (-1 == read(fd, gpio_value, 3)) {
+                loge("Failed to read CAN_Day_Mode gpio value");
+            }
+            int nightmodenow = !atoi(gpio_value);
 
-        // We send nightmode status periodically, otherwise Google Maps
-        // doesn't switch to nightmode if it's started late. Even if the
-        // other AA UI is already in nightmode.
-        if (nightmodenow != NM_NO_VALUE) {
-            nightmode = nightmodenow;
+            if(nightmodenow){
+                logd("It's night now");
+            }
+            else{
+                logd("It's day now");
+            }
 
-            g_hu->hu_queue_command([nightmodenow](IHUConnectionThreadInterface& s)
-            {
+            // We send nightmode status periodically, otherwise Google Maps
+            // doesn't switch to nightmode if it's started late. Even if the
+            // other AA UI is already in nightmode.
+            g_hu->hu_queue_command([nightmodenow](IHUConnectionThreadInterface &s) {
                 HU::SensorEvent sensorEvent;
                 sensorEvent.add_night_mode()->set_is_night(nightmodenow);
 
                 s.hu_aap_enc_send_message(0, AA_CH_SEN, HU_SENSOR_CHANNEL_MESSAGE::SensorEvent, sensorEvent);
             });
-        }
 
-        {
-            std::unique_lock<std::mutex> lk(quitmutex);
-            if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout)
             {
-                break;
+                std::unique_lock <std::mutex> lk(quitmutex);
+                if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout) {
+                    close(fd);
+                    break;
+                }
             }
         }
     }
-
-    mzd_nightmode_stop();
 }
 
 static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmutex)
