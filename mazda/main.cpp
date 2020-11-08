@@ -16,6 +16,7 @@
 #include <fstream>
 #include <algorithm>
 #include <thread>
+#include <unistd.h>
 
 #include <dbus-c++/dbus.h>
 #include <dbus-c++/glib-integration.h>
@@ -324,6 +325,8 @@ int main (int argc, char *argv[])
                 printf("hu_aap_shutdown() ret: %d\n", ret);
                 return ret;
             }
+
+            sleep(2);
 
             hmiBus.disconnect();
             serviceBus.disconnect();
