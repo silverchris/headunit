@@ -169,8 +169,23 @@ static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmut
     mzd_gps2_stop();
 }
 
+class BLMSystemClient : public com::jci::blmsystem::Interface_proxy, public DBus::ObjectProxy {
+public:
+    BLMSystemClient(DBus::Connection &connection, const char *path, const char *name) : DBus::ObjectProxy(connection, path, name) {}
 
+    virtual void NotifyStateTransition(const uint32_t &current_state, const uint32_t &target_state) override {}
 
+    virtual void NotifyShutdown(const uint32_t &generic_reboot_flags) override {}
+
+    virtual void NotifyAccChange(const int32_t &acc_state, const uint32_t &system_state) override {}
+
+    virtual void NotifySystemStateChange(const uint32_t &old_state, const uint32_t &current_state) {
+        if(current_state >= 4){
+            logd("Got Shutdown Signal\n");
+            g_main_loop_quit(gst_app.loop);
+        }
+    }
+};
 
 int main (int argc, char *argv[])
 {
@@ -226,6 +241,7 @@ int main (int argc, char *argv[])
             serviceBus.register_bus();
 
             std::thread wireless_handle(wireless_thread);
+            static BLMSystemClient *blmsystem_client = new BLMSystemClient(serviceBus, "/com/jci/blm/system", "com.jci.blmsystem.Interface");
 
             hud_start();
 
