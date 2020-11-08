@@ -69,7 +69,9 @@ void MazdaEventCallbacks::MediaSetupComplete(int chan) {
 
 void MazdaEventCallbacks::DisconnectionOrError() {
     printf("DisconnectionOrError\n");
-    g_main_loop_quit(gst_app.loop);
+    if(g_main_loop_is_running(gst_app.loop)){
+        g_main_loop_quit(gst_app.loop);
+    }
 }
 
 void MazdaEventCallbacks::CustomizeOutputChannel(int chan, HU::ChannelDescriptor::OutputStreamChannel &streamChannel) {

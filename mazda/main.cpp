@@ -47,6 +47,7 @@ gst_app_t gst_app;
 IHUAnyThreadInterface* g_hu = nullptr;
 
 static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &quitmutex) {
+    std::unique_lock <std::mutex> lk(quitmutex);
     char gpio_value[3];
     int fd = open("/sys/class/gpio/CAN_Day_Mode/value", O_RDONLY);
     if (-1 == fd) {
@@ -79,18 +80,21 @@ static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &q
             });
 
             {
-                std::unique_lock <std::mutex> lk(quitmutex);
                 if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout) {
-                    close(fd);
                     break;
                 }
             }
         }
+        close(fd);
+        logd("Exiting");
+        lk.unlock();
+        lk.release();
     }
 }
 
 static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmutex)
 {
+    std::unique_lock<std::mutex> lk(quitmutex);
     GPSData data, newData;
     uint64_t oldTs = 0;
     int debugLogCount = 0;
@@ -102,6 +106,7 @@ static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmut
     config::readConfig();
     while (true)
     {
+        logd("Getting GPS Data");
         if (config::carGPS && mzd_gps2_get(newData) && !data.IsSame(newData))
         {
             data = newData;
@@ -157,11 +162,11 @@ static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmut
                 s.hu_aap_enc_send_message(0, AA_CH_SEN, HU_SENSOR_CHANNEL_MESSAGE::SensorEvent, sensorEvent);
             });
         }
+        logd("Done Getting GPS Data");
 
         {
-            std::unique_lock<std::mutex> lk(quitmutex);
             //The timestamps on the GPS events are in seconds, but based on logging the data actually changes faster with the same timestamp
-            if (quitcv.wait_for(lk, std::chrono::milliseconds(250)) == std::cv_status::no_timeout)
+            if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout)
             {
                 break;
             }
@@ -169,8 +174,9 @@ static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmut
     }
 
     mzd_gps2_set_enabled(false);
-
-    mzd_gps2_stop();
+    logd("Exiting");
+    lk.unlock();
+    lk.release();
 }
 
 class BLMSystemClient : public com::jci::blmsystem::Interface_proxy, public DBus::ObjectProxy {
@@ -247,7 +253,6 @@ int main (int argc, char *argv[])
             std::thread wireless_handle(wireless_thread);
             static BLMSystemClient *blmsystem_client = new BLMSystemClient(serviceBus, "/com/jci/blm/system", "com.jci.blmsystem.Interface");
 
-            hud_start();
 
             MazdaEventCallbacks callbacks(serviceBus, hmiBus);
             HUServer headunit(callbacks);
@@ -270,7 +275,10 @@ int main (int argc, char *argv[])
 
             std::thread nm_thread([&quitcv, &quitmutex](){ nightmode_thread_func(quitcv, quitmutex); } );
             std::thread gp_thread([&quitcv, &quitmutex](){ gps_thread_func(quitcv, quitmutex); } );
-            std::thread hud_thread([&quitcv, &quitmutex, &hudmutex](){ hud_thread_func(quitcv, quitmutex, hudmutex); } );
+            std::thread *hud_thread = nullptr;
+            if(hud_installed()){
+                hud_thread = new std::thread([&quitcv, &quitmutex, &hudmutex](){ hud_thread_func(quitcv, quitmutex, hudmutex); } );
+            }
 
             /* Start gstreamer pipeline and main loop */
 
@@ -296,13 +304,16 @@ int main (int argc, char *argv[])
             printf("waiting for gps_thread\n");
             gp_thread.join();
 
-            printf("waiting for hud_thread\n");
-            hud_thread.join();
+            printf("waiting for wireless_thread\n");
+            wireless_stop();
+            wireless_handle.join();
+
+            if(hud_thread != nullptr){
+                printf("waiting for hud_thread\n");
+                hud_thread->join();
+            }
 
             printf("shutting down\n");
-
-            g_main_loop_unref(gst_app.loop);
-            gst_app.loop = nullptr;
 
             /* Stop AA processing */
             ret = headunit.hu_aap_shutdown();
@@ -311,6 +322,8 @@ int main (int argc, char *argv[])
                 return ret;
             }
 
+            g_main_loop_unref(gst_app.loop);
+            gst_app.loop = nullptr;
             g_main_context_unref(run_on_thread_main_context);
             run_on_thread_main_context = nullptr;
             g_hu = nullptr;

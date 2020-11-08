@@ -164,11 +164,17 @@ std::string hostapd_config(std::string key) {
     }
 };
 
+DBus::BusDispatcher wireless_dispatcher;
+
+void wireless_stop(){
+    wireless_dispatcher.leave();
+}
+
+
 void wireless_thread() {
     static BDSClient *bds_client = NULL;
     static NMSClient *nms_client = NULL;
-    DBus::BusDispatcher dispatcher;
-    DBus::default_dispatcher = &dispatcher;
+    DBus::default_dispatcher = &wireless_dispatcher;
 
     logd("DBus::Glib::BusDispatcher attached\n");
 
@@ -193,7 +199,8 @@ void wireless_thread() {
         }
 
 
-        dispatcher.enter();
+        wireless_dispatcher.enter();
+        logd("Exiting");
     }
     catch (DBus::Error &error) {
         loge("DBUS: Failed to connect to SERVICE bus %s: %s\n", error.name(), error.message());

@@ -56,9 +56,10 @@ uint8_t roundabout(int32_t degrees, int32_t side){
 }
 
 void hud_thread_func(std::condition_variable& quitcv, std::mutex& quitmutex, std::mutex& hudmutex){
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::unique_lock<std::mutex> lk(quitmutex);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   //Don't bother with the HUD if we aren't connected via dbus
-  while (hud_installed())
+  while (1)
   {
     // if (hud_client == NULL) {
     //   return;
@@ -100,13 +101,14 @@ void hud_thread_func(std::condition_variable& quitcv, std::mutex& quitmutex, std
     }
     hudmutex.unlock();
     {
-        std::unique_lock<std::mutex> lk(quitmutex);
         if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout)
         {
             break;
         }
     }
   }
+    lk.unlock();
+    lk.release();
 }
 
 void hud_start()

@@ -145,6 +145,7 @@ void handleWifiInfoRequest(int fd, uint8_t *buffer, uint16_t length);
 void handleWifiSecurityRequest(int fd, uint8_t *buffer, uint16_t length);
 int handleWifiInfoRequestResponse(int fd, uint8_t *buffer, uint16_t length);
 std::string hostapd_config(std::string key);
+void wireless_stop();
 void wireless_thread();
 
 #endif //HEADUNIT_WIRELESS_H
