@@ -290,8 +290,6 @@ int main (int argc, char *argv[])
 
             g_main_loop_run (gst_app.loop);
 
-            commandCallbacks.eventCallbacks = nullptr;
-
             callbacks.connected = false;
             callbacks.videoFocus = false;
             callbacks.audioFocus = AudioManagerClient::FocusType::NONE;
@@ -326,12 +324,15 @@ int main (int argc, char *argv[])
                 return ret;
             }
 
+            headunit.join();
+
             sleep(2);
 
             hmiBus.disconnect();
             serviceBus.disconnect();
 
             g_main_loop_unref(gst_app.loop);
+            commandCallbacks.eventCallbacks = nullptr;
             gst_app.loop = nullptr;
             g_main_context_unref(run_on_thread_main_context);
             run_on_thread_main_context = nullptr;
