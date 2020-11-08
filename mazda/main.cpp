@@ -332,6 +332,7 @@ int main (int argc, char *argv[])
             g_hu = nullptr;
             DBus::default_dispatcher = nullptr;
         }
+        commandServer.Stop();
     }
     catch(DBus::Error& error)
     {
