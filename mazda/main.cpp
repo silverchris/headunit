@@ -179,6 +179,8 @@ static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmut
     lk.release();
 }
 
+bool exiting = 0;
+
 class BLMSystemClient : public com::jci::blmsystem::Interface_proxy, public DBus::ObjectProxy {
 public:
     BLMSystemClient(DBus::Connection &connection, const char *path, const char *name) : DBus::ObjectProxy(connection, path, name) {}
@@ -192,6 +194,7 @@ public:
     virtual void NotifySystemStateChange(const uint32_t &old_state, const uint32_t &current_state) {
         if(current_state >= 4){
             logd("Got Shutdown Signal\n");
+            exiting = 1;
             g_main_loop_quit(gst_app.loop);
         }
     }
@@ -232,7 +235,7 @@ int main (int argc, char *argv[])
 
         config::readConfig();
         printf("Looping\n");
-        while (true)
+        while (!exiting)
         {
             //Make a new one instead of using the default so we can clean it up each run
             run_on_thread_main_context = g_main_context_new();
