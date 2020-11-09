@@ -140,6 +140,32 @@ public:
     virtual void WifiSignalStrength(const int32_t &ifcId, const uint32_t &strength) override {}
 };
 
+class BCAClient : public com::jci::bca_proxy, public DBus::ObjectProxy {
+public:
+    BCAClient(DBus::Connection &connection, const char *path, const char *name) : DBus::ObjectProxy(connection, path, name) {}
+    virtual void DontShowOnConnectionSettingStatusResp(const uint32_t& btDeviceId, const bool& setting) override {}
+    virtual void ConnectionStatusResp(const uint32_t& serviceId, const uint32_t& connStatus, const uint32_t& btDeviceId, const uint32_t& status, const ::DBus::Struct< std::vector< uint8_t > >& terminalPath);
+    virtual void HftReadyStatus(const uint32_t& hftReady, const uint32_t& reasonCode, const uint32_t& appId) override {}
+    virtual void ReadyStatus(const uint32_t& isReady, const uint32_t& reasonCode) override {}
+    virtual void AddStatusResp(const uint32_t& addServiceId, const uint32_t& status) override {}
+    virtual void DeviceUnbarringStatusResp(const uint32_t& btDeviceId, const uint32_t& status) override {}
+    virtual void DeviceBluetoothSettingResp(const bool& btSetting) override {}
+    virtual void AvailablePairedListResp(const uint32_t& totalPairedDevices, const ::DBus::Struct< std::vector< uint8_t > >& pairedDeviceList) override {}
+    virtual void SupportedProfilesResp(const ::DBus::Struct< std::vector< uint8_t > >& supportedProfiles) override {}
+    virtual void FirstHfpSupportedInfo(const bool& isHfpSupportedDevicePresent) override {}
+    virtual void CarPlayConnectionStatus(const uint32_t& connStatus, const uint32_t& carPlayDeviceId) override {}
+    virtual void AAutoEnableBt() override {}
+    virtual void AAutoNoEntryAvailable(const uint32_t& deleteDeviceId) override {}
+    virtual void ReqStartAndroidAutoPairing() override {}
+    virtual void ReqStopAndroidAutoPairing() override {}
+    virtual void ReqDeleteDevice(const uint32_t& deleteDeviceId) override {}
+    virtual void AAPairingSeqResult(const bool& result) override {}
+    virtual void AndroidAutoPairingTimeout() override {}
+    virtual void RequestStartAutoDownload(const uint32_t& btDeviceId) override {}
+    virtual void DisableBluetoothRsp(const uint32_t& activeCallStatus) override {}
+    virtual void ConnectingCarPlayError() override {}
+};
+
 void sendMessage(int fd, google::protobuf::MessageLite &message, uint16_t type);
 void handleWifiInfoRequest(int fd, uint8_t *buffer, uint16_t length);
 void handleWifiSecurityRequest(int fd, uint8_t *buffer, uint16_t length);

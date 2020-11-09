@@ -24,6 +24,7 @@
 
 #include "hu_uti.h"
 
+#define HMI_BUS_ADDRESS "unix:path=/tmp/dbus_hmi_socket"
 #define SERVICE_BUS_ADDRESS "unix:path=/tmp/dbus_service_socket"
 
 std::string IP_ADDRESS;
@@ -81,10 +82,80 @@ int handleWifiInfoRequestResponse(int fd, uint8_t *buffer, uint16_t length) {
     return msg.status();
 }
 
+//uint32 15
+//uint32 3
+//uint32 1
+//uint32 100
+//struct {
+//    array of bytes [
+//    2f 64 65 76 2f 70 74 73 2f 30 00 00 00 00 00 00 00 00 00 00 00
+//    ]
+
+
+void handle_connect(char *pty){
+    char buf[100];
+    logd("\tPTY: %s\n", pty);
+    int fd = open(pty, O_RDWR | O_NOCTTY | O_SYNC);
+    HU::WifiInfoRequest request;
+    request.set_ip_address(IP_ADDRESS.c_str());
+    request.set_port(30515);
+
+    sendMessage(fd, request, 1);
+
+    logd("PTY opened\n");
+    ssize_t len = 0;
+    int loop = 1;
+    while (loop) {
+        ssize_t i = read(fd, buf, 4);
+        len += i;
+        if (len >= 4) {
+            uint16_t size = be16toh(*(uint16_t *) buf);
+            uint16_t type = be16toh(*(uint16_t * )(buf + 2));
+            logd("Size: %u, MessageID: %u, left: %u\n", size, type);
+            if (len >= size + 4) {
+                uint8_t *buffer = (uint8_t *) malloc(size);
+                i = 0;
+                while (i < size) {
+                    i += read(fd, buffer, size);
+                }
+                switch (type) {
+                    case 1:
+                        handleWifiInfoRequest(fd, buffer, size);
+                        break;
+                    case 2:
+                        handleWifiSecurityRequest(fd, buffer, size);
+                        break;
+                    case 7:
+                        if (handleWifiInfoRequestResponse(fd, buffer, size) == 0) {
+                            loop = 0;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+    }
+}
+
+void BCAClient::ConnectionStatusResp(
+        const uint32_t &serviceId,
+        const uint32_t &connStatus,
+        const uint32_t &btDeviceId,
+        const uint32_t &status,
+        const ::DBus::Struct <std::vector<uint8_t>> &terminalPath) {
+    if (serviceId == 15 && connStatus == 3) {
+        char *pty = (char *) malloc(terminalPath._1.size());
+        std::copy(terminalPath._1.begin(), terminalPath._1.end(), pty);
+        logd("\tPTY: %s\n", pty);
+        handle_connect(pty);
+        free(pty);
+    }
+}
+
 void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <std::vector<uint8_t>> &data) {
     char mac[18];
     char pty[100];
-    char buf[100];
     logd("Signal Connected:\n");
     logd("\tType: %u\n", type);
     std::copy(data._1.begin() + 14, data._1.begin() + 32, mac);
@@ -94,47 +165,7 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
     if (data._1[36] == 15) {
         std::strncpy(pty, (char *) &data._1[48], 100);
         logd("\tPTY: %s\n", pty);
-        int fd = open(pty, O_RDWR | O_NOCTTY | O_SYNC);
-        HU::WifiInfoRequest request;
-        request.set_ip_address(IP_ADDRESS.c_str());
-        request.set_port(30515);
-
-        sendMessage(fd, request, 1);
-
-        logd("PTY opened\n");
-        ssize_t len = 0;
-        int loop = 1;
-        while (loop) {
-            ssize_t i = read(fd, buf, 4);
-            len += i;
-            if (len >= 4) {
-                uint16_t size = be16toh(*(uint16_t *) buf);
-                uint16_t type = be16toh(*(uint16_t * )(buf + 2));
-                logd("Size: %u, MessageID: %u, left: %u\n", size, type);
-                if (len >= size + 4) {
-                    uint8_t *buffer = (uint8_t *) malloc(size);
-                    i = 0;
-                    while (i < size) {
-                        i += read(fd, buffer, size);
-                    }
-                    switch (type) {
-                        case 1:
-                            handleWifiInfoRequest(fd, buffer, size);
-                            break;
-                        case 2:
-                            handleWifiSecurityRequest(fd, buffer, size);
-                            break;
-                        case 7:
-                            if (handleWifiInfoRequestResponse(fd, buffer, size) == 0) {
-                                loop = 0;
-                            }
-                            break;
-                        default:
-                            break;
-                    }
-                }
-            }
-        }
+        handle_connect(pty);
     }
 }
 
@@ -174,15 +205,20 @@ void wireless_stop(){
 void wireless_thread() {
     static BDSClient *bds_client = NULL;
     static NMSClient *nms_client = NULL;
+    static BCAClient *bca_client = NULL;
     DBus::default_dispatcher = &wireless_dispatcher;
 
     logd("DBus::Glib::BusDispatcher attached\n");
 
     try {
+        DBus::Connection hmi_bus(HMI_BUS_ADDRESS, false);
+        hmi_bus.register_bus();
         DBus::Connection service_bus(SERVICE_BUS_ADDRESS, false);
         service_bus.register_bus();
         bds_client = new BDSClient(service_bus, "/com/jci/bds", "com.jci.bds");
         nms_client = new NMSClient(service_bus, "/com/jci/nms", "com.jci.nms");
+        bca_client = new BCAClient(hmi_bus, "/com/jci/bca", "com.jci.bca");
+
 
         ::DBus::Struct <std::vector<int32_t>> interface_list;
         int32_t rvalue;
@@ -197,6 +233,8 @@ void wireless_thread() {
                 MAC_ADDRESS.assign(interface_params._6.c_str());
             }
         }
+
+        bca_client->StartAdd(15);
 
 
         wireless_dispatcher.enter();
