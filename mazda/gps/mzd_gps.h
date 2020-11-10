@@ -15,7 +15,7 @@ struct GPSData
     bool IsSame(const GPSData& other) const;
 };
 
-void mzd_gps2_start();
+void mzd_gps2_start(DBus::Connection& serviceBus);
 
 bool mzd_gps2_get(GPSData& data);
 void mzd_gps2_set_enabled(bool bEnabled);

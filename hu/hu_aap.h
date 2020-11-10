@@ -190,6 +190,7 @@ public:
   int hu_aap_start    (HU_TRANSPORT_TYPE transportType, std::string& phoneIpAddress, bool waitForDevice);
   int hu_aap_shutdown ();
   void join();
+  bool running();
 
   HUServer(IHUConnectionThreadEventCallbacks& callbacks);
   ~HUServer() { hu_aap_shutdown(); }

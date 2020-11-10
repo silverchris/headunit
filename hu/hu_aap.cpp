@@ -618,7 +618,7 @@
   }
 
   int HUServer::hu_handle_ShutdownRequest (int chan, byte * buf, int len) {                  // Byebye Request
-
+    logd("Shutdown Request");
     HU::ShutdownRequest request;
     if (!request.ParseFromArray(buf, len))
       loge ("Byebye Request");
@@ -638,7 +638,7 @@
   }
 
   int HUServer::hu_handle_ShutdownResponse (int chan, byte * buf, int len) {                  // Byebye Request
-
+      logd("Shutdown Response");
       hu_aap_stop ();
 
       return (-1);
@@ -1228,14 +1228,19 @@
     if (iaap_state != hu_STATE_STARTED)
       return (0);
 
-    HU::ShutdownRequest shutdownReq;
-    shutdownReq.set_reason(HU::ShutdownRequest::REASON_QUIT);
-    hu_aap_enc_send_message(0, AA_CH_CTR, HU_PROTOCOL_MESSAGE::ShutdownRequest, shutdownReq);
-
     hu_thread_quit_flag = true;
     callbacks.DisconnectionOrError();
 
     return (0);
+  }
+
+  bool HUServer::running(){
+      if(iaap_state == hu_STATE_STOPPED){
+          return true;
+      }
+      else{
+          return false;
+      }
   }
 
   IHUAnyThreadInterface::HUThreadCommand* HUServer::hu_pop_command()

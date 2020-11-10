@@ -48,7 +48,6 @@ gst_app_t gst_app;
 IHUAnyThreadInterface* g_hu = nullptr;
 
 static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &quitmutex) {
-    std::unique_lock <std::mutex> lk(quitmutex);
     char gpio_value[3];
     int fd = open("/sys/class/gpio/CAN_Day_Mode/value", O_RDONLY);
     if (-1 == fd) {
@@ -63,10 +62,9 @@ static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &q
             }
             int nightmodenow = !atoi(gpio_value);
 
-            if(nightmodenow){
+            if (nightmodenow) {
                 logd("It's night now");
-            }
-            else{
+            } else {
                 logd("It's day now");
             }
 
@@ -79,27 +77,26 @@ static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &q
 
                 s.hu_aap_enc_send_message(0, AA_CH_SEN, HU_SENSOR_CHANNEL_MESSAGE::SensorEvent, sensorEvent);
             });
-
             {
+                std::unique_lock<std::mutex> lk(quitmutex);
                 if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout) {
+                    lk.unlock();
+                    lk.release();
                     break;
                 }
             }
         }
         close(fd);
         logd("Exiting");
-        lk.unlock();
-        lk.release();
     }
 }
 
-static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmutex)
+static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmutex, DBus::Connection& serviceBus)
 {
-    std::unique_lock<std::mutex> lk(quitmutex);
     GPSData data, newData;
     uint64_t oldTs = 0;
     int debugLogCount = 0;
-    mzd_gps2_start();
+    mzd_gps2_start(serviceBus);
 
     //Not sure if this is actually required but the built-in Nav code on CMU does it
     mzd_gps2_set_enabled(true);
@@ -166,9 +163,12 @@ static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmut
         logd("Done Getting GPS Data");
 
         {
+            std::unique_lock<std::mutex> lk(quitmutex);
             //The timestamps on the GPS events are in seconds, but based on logging the data actually changes faster with the same timestamp
             if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout)
             {
+                lk.unlock();
+                lk.release();
                 break;
             }
         }
@@ -176,8 +176,7 @@ static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmut
 
     mzd_gps2_set_enabled(false);
     logd("Exiting");
-    lk.unlock();
-    lk.release();
+
 }
 
 bool exiting = 0;
@@ -201,6 +200,122 @@ public:
     }
 };
 
+int run(DBus::Connection& serviceBus, DBus::Connection& hmiBus){
+    MazdaCommandServerCallbacks commandCallbacks;
+    CommandServer commandServer(commandCallbacks);
+    printf("headunit version: %s \n", commandCallbacks.GetVersion().c_str());
+    if (!commandServer.Start())
+    {
+        loge("Command server failed to start");
+        return 1;
+    }
+
+
+    MazdaEventCallbacks callbacks(serviceBus, hmiBus);
+    HUServer headunit(callbacks);
+    g_hu = &headunit.GetAnyThreadInterface();
+    commandCallbacks.eventCallbacks = &callbacks;
+
+    //This needs to be started before we headunit starts waiting for a connection
+    std::thread wireless_handle(wireless_thread);
+
+    //Wait forever for a connection
+    int ret = headunit.hu_aap_start(config::transport_type, config::phoneIpAddress, true);
+    if (ret < 0) {
+        loge("Something bad happened");
+        return 1;
+    }
+
+    gst_app.loop = g_main_loop_new(run_on_thread_main_context, FALSE);
+    callbacks.connected = true;
+
+    std::condition_variable quitcv;
+    std::mutex quitmutex;
+    std::mutex hudmutex;
+
+    std::thread nm_thread([&quitcv, &quitmutex](){ nightmode_thread_func(quitcv, quitmutex); } );
+    std::thread gp_thread([&quitcv, &quitmutex, &serviceBus](){ gps_thread_func(quitcv, quitmutex, serviceBus); } );
+    std::thread *hud_thread = nullptr;
+    if(hud_installed()){
+        hud_thread = new std::thread([&quitcv, &quitmutex, &hudmutex](){ hud_thread_func(quitcv, quitmutex, hudmutex); } );
+    }
+
+    /* Start gstreamer pipeline and main loop */
+
+    printf("Starting Android Auto...\n");
+
+    g_main_loop_run (gst_app.loop);
+
+    callbacks.connected = false;
+    callbacks.videoFocus = false;
+    callbacks.audioFocus = AudioManagerClient::FocusType::NONE;
+    callbacks.inCall = false;
+
+    printf("quitting...\n");
+    //wake up night mode  and gps polling threads
+    quitcv.notify_all();
+
+    int thread_count = 4;
+    while(thread_count > 0){
+        if(nm_thread.joinable()){
+            printf("waiting for nm_thread\n");
+            nm_thread.join();
+            thread_count--;
+        }
+
+        if(gp_thread.joinable()){
+            printf("waiting for gps_thread\n");
+            mzd_gps2_stop();
+            gp_thread.join();
+            thread_count--;
+        }
+
+        if(wireless_handle.joinable()) {
+            printf("waiting for wireless_thread\n");
+            wireless_stop();
+            wireless_handle.join();
+            thread_count--;
+        }
+
+        if(hud_thread != nullptr){
+            if(hud_thread->joinable()){
+                printf("waiting for hud_thread\n");
+                hud_thread->join();
+                thread_count--;
+            }
+        }
+        else{
+            thread_count--;
+        }
+    }
+
+    printf("shutting down\n");
+
+    /* Stop AA processing */
+    ret = headunit.hu_aap_shutdown();
+    if (ret < 0) {
+        printf("hu_aap_shutdown() ret: %d\n", ret);
+        return ret;
+    }
+    while(headunit.running()){
+        sleep(1);
+    }
+
+    headunit.join();
+
+    printf("Exiting Command Server\n");
+    commandServer.Stop();
+
+    printf("Disconnecting Callbacks\n");
+    commandCallbacks.eventCallbacks = nullptr;
+
+    printf("Cleaning up\n");
+    g_main_loop_unref(gst_app.loop);
+    gst_app.loop = nullptr;
+    g_hu = nullptr;
+    sleep(2);
+}
+
 int main (int argc, char *argv[])
 {
     //Force line-only buffering so we can see the output during hangs
@@ -218,14 +333,6 @@ int main (int argc, char *argv[])
 
     try
     {
-        MazdaCommandServerCallbacks commandCallbacks;
-        CommandServer commandServer(commandCallbacks);
-        printf("headunit version: %s \n", commandCallbacks.GetVersion().c_str());
-        if (!commandServer.Start())
-        {
-            loge("Command server failed to start");
-            return 1;
-        }
 
         if (argc >= 2 && strcmp(argv[1], "test") == 0)
         {
@@ -254,92 +361,18 @@ int main (int argc, char *argv[])
             DBus::Connection serviceBus(SERVICE_BUS_ADDRESS, false);
             serviceBus.register_bus();
 
-            std::thread wireless_handle(wireless_thread);
             static BLMSystemClient *blmsystem_client = new BLMSystemClient(serviceBus, "/com/jci/blm/system", "com.jci.blmsystem.Interface");
 
+            run(serviceBus, hmiBus);
 
-            MazdaEventCallbacks callbacks(serviceBus, hmiBus);
-            HUServer headunit(callbacks);
-            g_hu = &headunit.GetAnyThreadInterface();
-            commandCallbacks.eventCallbacks = &callbacks;
-
-            //Wait forever for a connection
-            int ret = headunit.hu_aap_start(config::transport_type, config::phoneIpAddress, true);
-            if (ret < 0) {
-                loge("Something bad happened");
-                continue;
-            }
-
-            gst_app.loop = g_main_loop_new(run_on_thread_main_context, FALSE);
-            callbacks.connected = true;
-
-            std::condition_variable quitcv;
-            std::mutex quitmutex;
-            std::mutex hudmutex;
-
-            std::thread nm_thread([&quitcv, &quitmutex](){ nightmode_thread_func(quitcv, quitmutex); } );
-            std::thread gp_thread([&quitcv, &quitmutex](){ gps_thread_func(quitcv, quitmutex); } );
-            std::thread *hud_thread = nullptr;
-            if(hud_installed()){
-                hud_thread = new std::thread([&quitcv, &quitmutex, &hudmutex](){ hud_thread_func(quitcv, quitmutex, hudmutex); } );
-            }
-
-            /* Start gstreamer pipeline and main loop */
-
-            printf("Starting Android Auto...\n");
-
-            g_main_loop_run (gst_app.loop);
-
-            callbacks.connected = false;
-            callbacks.videoFocus = false;
-            callbacks.audioFocus = AudioManagerClient::FocusType::NONE;
-            callbacks.inCall = false;
-
-            printf("quitting...\n");
-            //wake up night mode  and gps polling threads
-            quitcv.notify_all();
-
-
-            printf("waiting for nm_thread\n");
-            nm_thread.join();
-
-            printf("waiting for gps_thread\n");
-            gp_thread.join();
-
-            printf("waiting for wireless_thread\n");
-            wireless_stop();
-            wireless_handle.join();
-
-            if(hud_thread != nullptr){
-                printf("waiting for hud_thread\n");
-                hud_thread->join();
-            }
-
-            printf("shutting down\n");
-
-            /* Stop AA processing */
-            ret = headunit.hu_aap_shutdown();
-            if (ret < 0) {
-                printf("hu_aap_shutdown() ret: %d\n", ret);
-                return ret;
-            }
-
-            headunit.join();
-
-            sleep(2);
-
-            hmiBus.disconnect();
-            serviceBus.disconnect();
-
-            g_main_loop_unref(gst_app.loop);
-            commandCallbacks.eventCallbacks = nullptr;
-            gst_app.loop = nullptr;
             g_main_context_unref(run_on_thread_main_context);
             run_on_thread_main_context = nullptr;
-            g_hu = nullptr;
-            DBus::default_dispatcher = nullptr;
+
+            printf("Disconnecting DBus\n");
+            hmiBus.disconnect();
+            serviceBus.disconnect();
+//            DBus::default_dispatcher = nullptr;
         }
-        commandServer.Stop();
     }
     catch(DBus::Error& error)
     {

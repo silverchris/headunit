@@ -57,17 +57,15 @@ void GPSLDSControl::ReadStatus(const int32_t& commandReply, const int32_t& statu
 }
 
 
-void mzd_gps2_start()
+void mzd_gps2_start(DBus::Connection& serviceBus)
 {
     if (gps_client != NULL)
         return;
 
     try
     {
-        DBus::Connection gpservice_bus(SERVICE_BUS_ADDRESS, false);
-        gpservice_bus.register_bus();
-        gps_client.reset(new GPSLDSCLient(gpservice_bus));
-        gps_control.reset(new GPSLDSControl(gpservice_bus));
+        gps_client.reset(new GPSLDSCLient(serviceBus));
+        gps_control.reset(new GPSLDSControl(serviceBus));
     }
     catch(DBus::Error& error)
     {
@@ -130,8 +128,8 @@ void mzd_gps2_set_enabled(bool bEnabled)
 
 void mzd_gps2_stop()
 {
-    gps_client.reset();
-    gps_control.reset();
+//    gps_client.reset();
+//    gps_control.reset();
 }
 
 bool GPSData::IsSame(const GPSData& other) const
