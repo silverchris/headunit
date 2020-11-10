@@ -163,7 +163,7 @@ static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmut
         {
             std::unique_lock<std::mutex> lk(quitmutex);
             //The timestamps on the GPS events are in seconds, but based on logging the data actually changes faster with the same timestamp
-            if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout)
+            if (quitcv.wait_for(lk, std::chrono::milliseconds(250)) == std::cv_status::no_timeout)
             {
                 break;
             }
