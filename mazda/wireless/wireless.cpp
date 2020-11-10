@@ -4,8 +4,6 @@
 
 #include "wireless.h"
 
-#include <dbus/dbus.h>
-#include <dbus-c++/dbus.h>
 #include <cstdint>
 #include <string>
 #include <cstring>
@@ -23,14 +21,14 @@
 #define HMI_BUS_ADDRESS "unix:path=/tmp/dbus_hmi_socket"
 #define SERVICE_BUS_ADDRESS "unix:path=/tmp/dbus_service_socket"
 
-std::string IP_ADDRESS;
-std::string MAC_ADDRESS;
+char *IP_ADDRESS;
+char *MAC_ADDRESS;
 
 
 void sendMessage(int fd, google::protobuf::MessageLite &message, uint16_t type) {
-    size_t byteSize = message.ByteSize();
-    uint16_t sizeOut = htobe16(byteSize);
-    uint16_t typeOut = htobe16(type);
+    auto byteSize = static_cast<size_t>(message.ByteSize());
+    auto sizeOut = static_cast<uint16_t>(htobe16(byteSize));
+    auto typeOut = static_cast<uint16_t>(htobe16(type));
     char *out = (char *) malloc(byteSize + 4);
     memcpy(out, &sizeOut, 2);
     memcpy(out + 2, &typeOut, 2);
@@ -52,7 +50,7 @@ void handleWifiInfoRequest(int fd, uint8_t *buffer, uint16_t length) {
     logd("WifiInfoRequest: %s\n", msg.DebugString().c_str());
 
     HU::WifiInfoResponse response;
-    response.set_ip_address(IP_ADDRESS.c_str());
+    response.set_ip_address(IP_ADDRESS);
     response.set_port(30515);
     response.set_status(HU::WifiInfoResponse_Status_STATUS_SUCCESS);
 
@@ -63,7 +61,7 @@ void handleWifiSecurityRequest(int fd, uint8_t *buffer, uint16_t length) {
     HU::WifiSecurityReponse response;
 
     response.set_ssid(hostapd_config("ssid").c_str());
-    response.set_bssid(MAC_ADDRESS.c_str());
+    response.set_bssid(MAC_ADDRESS);
     response.set_key(hostapd_config("wpa_passphrase").c_str());
     response.set_security_mode(HU::WifiSecurityReponse_SecurityMode_WPA2_PERSONAL);
     response.set_access_point_type(HU::WifiSecurityReponse_AccessPointType_DYNAMIC);
@@ -78,22 +76,12 @@ int handleWifiInfoRequestResponse(int fd, uint8_t *buffer, uint16_t length) {
     return msg.status();
 }
 
-//uint32 15
-//uint32 3
-//uint32 1
-//uint32 100
-//struct {
-//    array of bytes [
-//    2f 64 65 76 2f 70 74 73 2f 30 00 00 00 00 00 00 00 00 00 00 00
-//    ]
-
-
 void handle_connect(char *pty){
     char buf[100];
     logd("\tPTY: %s\n", pty);
     int fd = open(pty, O_RDWR | O_NOCTTY | O_SYNC);
     HU::WifiInfoRequest request;
-    request.set_ip_address(IP_ADDRESS.c_str());
+    request.set_ip_address(IP_ADDRESS);
     request.set_port(30515);
 
     sendMessage(fd, request, 1);
@@ -105,8 +93,8 @@ void handle_connect(char *pty){
         ssize_t i = read(fd, buf, 4);
         len += i;
         if (len >= 4) {
-            uint16_t size = be16toh(*(uint16_t *) buf);
-            uint16_t type = be16toh(*(uint16_t * )(buf + 2));
+            auto size = static_cast<uint16_t>(be16toh(*(uint16_t *) buf));
+            auto type = static_cast<uint16_t>(be16toh(*(uint16_t * )(buf + 2)));
             logd("Size: %u, MessageID: %u, left: %u\n", size, type);
             if (len >= size + 4) {
                 auto *buffer = (uint8_t *) malloc(size);
@@ -178,7 +166,7 @@ std::string hostapd_config(const std::string& key) {
                 pos = line.find(key); // search
                 if (pos != std::string::npos) // string::npos is returned if string is not found
                 {
-                    int equalPosition = line.find('=');
+                    size_t equalPosition = line.find('=');
                     std::string value = line.substr(equalPosition + 1);
                     return value;
                 }
@@ -225,8 +213,10 @@ void wireless_thread() {
             logd("Interface: %s, MAC: %s, IP: %s\n", interface_params._4.c_str(), interface_params._6.c_str(),
                  interface_params._5.c_str());
             if (interface_params._4 == "wlan0") {
-                IP_ADDRESS.assign(interface_params._5);
-                MAC_ADDRESS.assign(interface_params._6);
+                IP_ADDRESS = (char *) malloc(interface_params._5.length()+1);
+                MAC_ADDRESS = (char *) malloc(interface_params._6.length()+1);
+                strncpy(IP_ADDRESS, interface_params._5.c_str(), interface_params._5.length());
+                strncpy(MAC_ADDRESS, interface_params._6.c_str(), interface_params._6.length());
             }
         }
 
