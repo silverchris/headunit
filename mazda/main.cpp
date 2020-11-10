@@ -80,8 +80,6 @@ static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &q
             {
                 std::unique_lock<std::mutex> lk(quitmutex);
                 if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout) {
-                    lk.unlock();
-                    lk.release();
                     break;
                 }
             }
@@ -167,8 +165,6 @@ static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmut
             //The timestamps on the GPS events are in seconds, but based on logging the data actually changes faster with the same timestamp
             if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout)
             {
-                lk.unlock();
-                lk.release();
                 break;
             }
         }
