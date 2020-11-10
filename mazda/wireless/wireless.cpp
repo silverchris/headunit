@@ -6,14 +6,10 @@
 
 #include <dbus/dbus.h>
 #include <dbus-c++/dbus.h>
-#include <stdint.h>
+#include <cstdint>
 #include <string>
 #include <cstring>
-#include <functional>
-#include <condition_variable>
 #include <algorithm>
-#include <signal.h>
-#include <thread>
 #include <unistd.h>
 #include <fcntl.h>
 #include <fstream>
@@ -32,7 +28,7 @@ std::string MAC_ADDRESS;
 
 
 void sendMessage(int fd, google::protobuf::MessageLite &message, uint16_t type) {
-    int byteSize = message.ByteSize();
+    size_t byteSize = message.ByteSize();
     uint16_t sizeOut = htobe16(byteSize);
     uint16_t typeOut = htobe16(type);
     char *out = (char *) malloc(byteSize + 4);
@@ -113,7 +109,7 @@ void handle_connect(char *pty){
             uint16_t type = be16toh(*(uint16_t * )(buf + 2));
             logd("Size: %u, MessageID: %u, left: %u\n", size, type);
             if (len >= size + 4) {
-                uint8_t *buffer = (uint8_t *) malloc(size);
+                auto *buffer = (uint8_t *) malloc(size);
                 i = 0;
                 while (i < size) {
                     i += read(fd, buffer, size);
@@ -159,7 +155,7 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
     logd("Signal Connected:\n");
     logd("\tType: %u\n", type);
     std::copy(data._1.begin() + 14, data._1.begin() + 32, mac);
-    mac[18] = '\0';
+    mac[17] = '\0';
     logd("\tMAC: %s\n", mac);
     logd("\tService ID: %u\n", data._1[36]);
     if (data._1[36] == 15) {
@@ -169,7 +165,7 @@ void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <s
     }
 }
 
-std::string hostapd_config(std::string key) {
+std::string hostapd_config(const std::string& key) {
     std::ifstream hostapd_file;
     hostapd_file.open("/tmp/current-session-hostapd.conf");
 
@@ -182,9 +178,9 @@ std::string hostapd_config(std::string key) {
                 pos = line.find(key); // search
                 if (pos != std::string::npos) // string::npos is returned if string is not found
                 {
-                    int equalPosition = line.find("=");
-                    std::string value = line.substr(equalPosition + 1).c_str();
-                    return value.c_str();
+                    int equalPosition = line.find('=');
+                    std::string value = line.substr(equalPosition + 1);
+                    return value;
                 }
             }
         }
@@ -193,7 +189,7 @@ std::string hostapd_config(std::string key) {
     else {
         return "";
     }
-};
+}
 
 DBus::BusDispatcher wireless_dispatcher;
 
@@ -203,9 +199,9 @@ void wireless_stop(){
 
 
 void wireless_thread() {
-    static BDSClient *bds_client = NULL;
-    static NMSClient *nms_client = NULL;
-    static BCAClient *bca_client = NULL;
+    static BDSClient *bds_client = nullptr;
+    static NMSClient *nms_client = nullptr;
+    static BCAClient *bca_client = nullptr;
     DBus::default_dispatcher = &wireless_dispatcher;
 
     logd("DBus::Glib::BusDispatcher attached\n");
@@ -228,9 +224,9 @@ void wireless_thread() {
             nms_client->GetInterfaceParams(interface, rvalue, interface_params);
             logd("Interface: %s, MAC: %s, IP: %s\n", interface_params._4.c_str(), interface_params._6.c_str(),
                  interface_params._5.c_str());
-            if (interface_params._4.compare("wlan0") == 0) {
-                IP_ADDRESS.assign(interface_params._5.c_str());
-                MAC_ADDRESS.assign(interface_params._6.c_str());
+            if (interface_params._4 == "wlan0") {
+                IP_ADDRESS.assign(interface_params._5);
+                MAC_ADDRESS.assign(interface_params._6);
             }
         }
 
