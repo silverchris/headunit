@@ -17,7 +17,6 @@
 #include "mzd_gps.h"
 #include "../main.h"
 
-#define SERVICE_BUS_ADDRESS "unix:path=/tmp/dbus_service_socket"
 // Check the content folder. sd_nav still exists without the card installed
 #define SD_CARD_PATH "/tmp/mnt/sd_nav/content"
 

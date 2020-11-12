@@ -1,29 +1,14 @@
 #include <glib.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <gst/gst.h>
-#include <gst/app/gstappsrc.h>
-#include <time.h>
-#include <signal.h>
-#include <errno.h>
-#include <dbus/dbus.h>
-#include <poll.h>
-#include <inttypes.h>
-#include <cmath>
-#include <functional>
-#include <condition_variable>
-#include <sstream>
-#include <fstream>
-#include <algorithm>
+#include <csignal>
 #include <thread>
 #include <unistd.h>
 
 
 #include <dbus-c++/dbus.h>
 #include <dbus-c++/glib-integration.h>
-#include <sys/time.h>
-#include <sys/stat.h>
-#include <future>
 
 #include "hu_uti.h"
 #include "hu_aap.h"
@@ -33,7 +18,6 @@
 #include "wireless/wireless.h"
 #include "usb/usb.h"
 
-#include "audio.h"
 #include "main.h"
 #include "command_server.h"
 #include "callbacks.h"
@@ -95,7 +79,7 @@ static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &q
 
 
 
-void shutdown(int signum){
+void shutdown(__attribute__((unused)) int signum){
     exiting = true;
     g_main_loop_quit(gst_app.loop);
 }
@@ -104,13 +88,13 @@ class BLMSystemClient : public com::jci::blmsystem::Interface_proxy, public DBus
 public:
     BLMSystemClient(DBus::Connection &connection, const char *path, const char *name) : DBus::ObjectProxy(connection, path, name) {}
 
-    virtual void NotifyStateTransition(const uint32_t &current_state, const uint32_t &target_state) override {}
+    void NotifyStateTransition(const uint32_t &current_state, const uint32_t &target_state) override {}
 
-    virtual void NotifyShutdown(const uint32_t &generic_reboot_flags) override {}
+    void NotifyShutdown(const uint32_t &generic_reboot_flags) override {}
 
-    virtual void NotifyAccChange(const int32_t &acc_state, const uint32_t &system_state) override {}
+    void NotifyAccChange(const int32_t &acc_state, const uint32_t &system_state) override {}
 
-    virtual void NotifySystemStateChange(const uint32_t &old_state, const uint32_t &current_state) {
+    void NotifySystemStateChange(const uint32_t &old_state, const uint32_t &current_state) override {
         if(current_state >= 4){
             logd("Got Shutdown Signal\n");
             shutdown(SIGINT);
@@ -223,8 +207,8 @@ int main (int argc, char *argv[])
     exiting = false;
     signal(SIGINT, shutdown);
     //Force line-only buffering so we can see the output during hangs
-    setvbuf(stdout, NULL, _IOLBF, 0);
-    setvbuf(stderr, NULL, _IOLBF, 0);
+    setvbuf(stdout, nullptr, _IOLBF, 0);
+    setvbuf(stderr, nullptr, _IOLBF, 0);
 
     GOOGLE_PROTOBUF_VERIFY_VERSION;
 
@@ -282,7 +266,7 @@ int main (int argc, char *argv[])
             DBus::Connection serviceBus(SERVICE_BUS_ADDRESS, false);
             serviceBus.register_bus();
 
-            static BLMSystemClient *blmsystem_client = new BLMSystemClient(serviceBus, "/com/jci/blm/system", "com.jci.blmsystem.Interface");
+            static auto *blmsystem_client = new BLMSystemClient(serviceBus, "/com/jci/blm/system", "com.jci.blmsystem.Interface");
 
             ret = run(mode,serviceBus, hmiBus);
 
