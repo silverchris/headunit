@@ -42,8 +42,7 @@
 
 #define HMI_BUS_ADDRESS "unix:path=/tmp/dbus_hmi_socket"
 #define SERVICE_BUS_ADDRESS "unix:path=/tmp/dbus_service_socket"
-// Check the content folder. sd_nav still exists without the card installed
-#define SD_CARD_PATH "/tmp/mnt/sd_nav/content"
+
 
 __asm__(".symver realpath1,realpath1@GLIBC_2.11.1");
 
@@ -94,91 +93,7 @@ static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &q
     }
 }
 
-static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmutex, DBus::Connection& serviceBus)
-{
-    GPSData data, newData;
-    uint64_t oldTs = 0;
-    int debugLogCount = 0;
-    mzd_gps2_start(serviceBus);
 
-    //Not sure if this is actually required but the built-in Nav code on CMU does it
-    mzd_gps2_set_enabled(true);
-
-    config::readConfig();
-    while (!exiting)
-    {
-        logd("Getting GPS Data");
-        if (config::carGPS && mzd_gps2_get(newData) && !data.IsSame(newData))
-        {
-            data = newData;
-            timeval tv;
-            gettimeofday(&tv, nullptr);
-            uint64_t timestamp = tv.tv_sec * 1000000 + tv.tv_usec;
-            if (debugLogCount < 50) //only print the first 50 to avoid spamming the log and breaking the opera text box
-            {
-                logd("GPS data: %d %d %f %f %d %f %f %f %f   \n",data.positionAccuracy, data.uTCtime, data.latitude, data.longitude, data.altitude, data.heading, data.velocity, data.horizontalAccuracy, data.verticalAccuracy);
-                logd("Delta %f\n", (timestamp - oldTs)/1000000.0);
-                debugLogCount++;
-            }
-            oldTs = timestamp;
-
-            g_hu->hu_queue_command([data, timestamp](IHUConnectionThreadInterface& s)
-            {
-                HU::SensorEvent sensorEvent;
-                HU::SensorEvent::LocationData* location = sensorEvent.add_location_data();
-                //AA uses uS and the gps data just has seconds, just use the current time to get more precision so AA can
-                //interpolate better
-                location->set_timestamp(timestamp);
-                location->set_latitude(static_cast<int32_t>(data.latitude * 1E7));
-                location->set_longitude(static_cast<int32_t>(data.longitude * 1E7));
-
-                // If the sd card exists then reverse heading. This should only be used on installs that have the
-                // reversed heading issue.
-                double newHeading = data.heading;
-
-                if (config::reverseGPS)
-                {
-                    const char* sdCardFolder;
-                    sdCardFolder = SD_CARD_PATH;
-                    struct stat sb;
-
-                    if (stat(sdCardFolder, &sb) == 0 && S_ISDIR(sb.st_mode))
-                    {
-                        newHeading = data.heading + 180;
-                        if (newHeading >= 360)
-                        {
-                            newHeading = newHeading - 360;
-                        }
-                    }
-                }
-
-                location->set_bearing(static_cast<int32_t>(newHeading * 1E6));
-                //assuming these are the same units as the Android Location API (the rest are)
-                double velocityMetersPerSecond = data.velocity * 0.277778; //convert km/h to m/s
-                location->set_speed(static_cast<int32_t>(velocityMetersPerSecond * 1E3));
-
-                location->set_altitude(static_cast<int32_t>(data.altitude * 1E2));
-                location->set_accuracy(static_cast<int32_t>(data.horizontalAccuracy * 1E3));
-
-                s.hu_aap_enc_send_message(0, AA_CH_SEN, HU_SENSOR_CHANNEL_MESSAGE::SensorEvent, sensorEvent);
-            });
-        }
-        logd("Done Getting GPS Data");
-
-        {
-            std::unique_lock<std::mutex> lk(quitmutex);
-            //The timestamps on the GPS events are in seconds, but based on logging the data actually changes faster with the same timestamp
-            if (quitcv.wait_for(lk, std::chrono::milliseconds(250)) == std::cv_status::no_timeout)
-            {
-                break;
-            }
-        }
-    }
-
-    mzd_gps2_set_enabled(false);
-    logd("Exiting");
-
-}
 
 void shutdown(int signum){
     exiting = true;
@@ -241,7 +156,7 @@ int run(int mode, DBus::Connection& serviceBus, DBus::Connection& hmiBus){
     callbacks.connected = true;
 
     std::thread nm_thread([&quitcv, &quitmutex](){ nightmode_thread_func(quitcv, quitmutex); } );
-    std::thread gp_thread([&quitcv, &quitmutex, &serviceBus](){ gps_thread_func(quitcv, quitmutex, serviceBus); } );
+    std::thread gp_thread(gps_thread_func, &quitcv, &quitmutex, &serviceBus, &exiting);
     std::thread *hud_thread = nullptr;
     if(hud_installed()){
         hud_thread = new std::thread([&quitcv, &quitmutex, &hudmutex](){ hud_thread_func(quitcv, quitmutex, hudmutex, exiting); } );
