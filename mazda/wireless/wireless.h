@@ -117,29 +117,6 @@ public:
 
 };
 
-class NMSClient : public com::jci::nms_proxy, public DBus::ObjectProxy {
-public:
-    NMSClient(DBus::Connection&connection, const char *path, const char *name): DBus::ObjectProxy(connection, path, name){}
-
-    void InterfaceArrive(const int32_t &ifcId) override {}
-    void InterfaceDeparture(const int32_t &ifcId) override {}
-    void InterfaceChanged(const int32_t &ifcId, const int32_t &changeMask) override {}
-    void InterfaceConnecting(const int32_t &ifcId) override {}
-    void InterfaceDisconnecting(const int32_t &ifcId) override {}
-    void InterfaceConnected(const int32_t &ifcId) override {}
-    void InterfaceDisconnected(const int32_t &ifcId, const int32_t &reason) override {}
-    void WifiScanResultsReady(const int32_t &ifcId) override {}
-    void ConnectResult(const int32_t &ifcId, const int32_t &reqId, const int32_t &result) override {}
-    void InterfaceWiFiModeChanged(const int32_t &ifcId, const int32_t &mode) override {}
-    void WiFiAPClientConnected(const int32_t &ifcId, const std::string &bssid) override {}
-    void WiFiAPClientDisconnected(const int32_t &ifcId, const std::string &bssid) override {}
-    void APOpenInfo(const int32_t &ifcId, const ::DBus::Struct <std::string, uint32_t, int32_t, int32_t> &config) override {}
-    void APWepInfo(const int32_t &ifcId, const ::DBus::Struct<::DBus::Struct < std::string, uint32_t, int32_t, int32_t>, ::DBus::Struct <std::string, std::string, std::string, std::string>>& config) override {}
-    void APWpaInfo(const int32_t &ifcId, const ::DBus::Struct<::DBus::Struct < std::string, uint32_t, int32_t, int32_t>, ::DBus::Struct <int32_t, std::string>>& config) override {}
-    void InterfaceMonitorData(const int32_t &ifcId, const ::DBus::Struct <uint64_t, uint64_t> &statistics) override {}
-    void WifiSignalStrength(const int32_t &ifcId, const uint32_t &strength) override {}
-};
-
 class BCAClient : public com::jci::bca_proxy, public DBus::ObjectProxy {
 public:
     BCAClient(DBus::Connection &connection, const char *path, const char *name) : DBus::ObjectProxy(connection, path, name) {}
@@ -171,6 +148,7 @@ void handleWifiInfoRequest(int fd, uint8_t *buffer, uint16_t length);
 void handleWifiSecurityRequest(int fd, uint8_t *buffer, uint16_t length);
 int handleWifiInfoRequestResponse(int fd, uint8_t *buffer, uint16_t length);
 std::string hostapd_config(const std::string& key);
+void update_ip_mac();
 void wireless_stop();
 void wireless_thread();
 
