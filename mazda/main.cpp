@@ -47,6 +47,8 @@ __asm__(".symver realpath1,realpath1@GLIBC_2.11.1");
 gst_app_t gst_app;
 IHUAnyThreadInterface* g_hu = nullptr;
 
+std::atomic<bool> exiting;
+
 static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &quitmutex) {
     char gpio_value[3];
     int fd = open("/sys/class/gpio/CAN_Day_Mode/value", O_RDONLY);
@@ -56,16 +58,16 @@ static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &q
         //Offset so the GPS and NM thread are not perfectly in sync testing each second
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-        while (true) {
+        while (!exiting) {
             if (-1 == read(fd, gpio_value, 3)) {
                 loge("Failed to read CAN_Day_Mode gpio value");
             }
             int nightmodenow = !atoi(gpio_value);
 
             if (nightmodenow) {
-                logd("It's night now");
+                logd("It's night now, %i", nightmodenow);
             } else {
-                logd("It's day now");
+                logd("It's day now, %i", nightmodenow);
             }
 
             // We send nightmode status periodically, otherwise Google Maps
@@ -100,7 +102,7 @@ static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmut
     mzd_gps2_set_enabled(true);
 
     config::readConfig();
-    while (true)
+    while (!exiting)
     {
         logd("Getting GPS Data");
         if (config::carGPS && mzd_gps2_get(newData) && !data.IsSame(newData))
@@ -175,7 +177,10 @@ static void gps_thread_func(std::condition_variable& quitcv, std::mutex& quitmut
 
 }
 
-bool exiting = 0;
+void shutdown(int signum){
+    exiting = true;
+    g_main_loop_quit(gst_app.loop);
+}
 
 class BLMSystemClient : public com::jci::blmsystem::Interface_proxy, public DBus::ObjectProxy {
 public:
@@ -190,8 +195,7 @@ public:
     virtual void NotifySystemStateChange(const uint32_t &old_state, const uint32_t &current_state) {
         if(current_state >= 4){
             logd("Got Shutdown Signal\n");
-            exiting = 1;
-            g_main_loop_quit(gst_app.loop);
+            shutdown(SIGINT);
         }
     }
 };
@@ -233,7 +237,7 @@ int run(DBus::Connection& serviceBus, DBus::Connection& hmiBus){
     std::thread gp_thread([&quitcv, &quitmutex, &serviceBus](){ gps_thread_func(quitcv, quitmutex, serviceBus); } );
     std::thread *hud_thread = nullptr;
     if(hud_installed()){
-        hud_thread = new std::thread([&quitcv, &quitmutex, &hudmutex](){ hud_thread_func(quitcv, quitmutex, hudmutex); } );
+        hud_thread = new std::thread([&quitcv, &quitmutex, &hudmutex](){ hud_thread_func(quitcv, quitmutex, hudmutex, exiting); } );
     }
 
     /* Start gstreamer pipeline and main loop */
@@ -310,10 +314,13 @@ int run(DBus::Connection& serviceBus, DBus::Connection& hmiBus){
     gst_app.loop = nullptr;
     g_hu = nullptr;
     sleep(2);
+    return 0;
 }
 
 int main (int argc, char *argv[])
 {
+    exiting = false;
+    signal(SIGINT, shutdown);
     //Force line-only buffering so we can see the output during hangs
     setvbuf(stdout, NULL, _IOLBF, 0);
     setvbuf(stderr, NULL, _IOLBF, 0);
@@ -326,7 +333,7 @@ int main (int argc, char *argv[])
     DBus::_init_threading();
 
     gst_init(&argc, &argv);
-
+    int ret;
     try
     {
 
@@ -359,7 +366,7 @@ int main (int argc, char *argv[])
 
             static BLMSystemClient *blmsystem_client = new BLMSystemClient(serviceBus, "/com/jci/blm/system", "com.jci.blmsystem.Interface");
 
-            run(serviceBus, hmiBus);
+            ret = run(serviceBus, hmiBus);
 
             g_main_context_unref(run_on_thread_main_context);
             run_on_thread_main_context = nullptr;
@@ -376,5 +383,5 @@ int main (int argc, char *argv[])
         return 1;
     }
 
-    return 0;
+    return ret;
 }
