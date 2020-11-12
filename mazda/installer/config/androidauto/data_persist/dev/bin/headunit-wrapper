@@ -30,17 +30,6 @@ if ! [ -e /tmp/root/headunit.json ]; then
  cp "${SCRIPTPATH}/headunit.json" /tmp/root/
 fi
 
-start_headunit()
-{
-   rm -f /tmp/root/headunit-wireless.status
-   taskset 0xFFFFFFFF "${SCRIPTPATH}/headunit" "$@" >> ${LOGPATH} 2>&1 &
-   sleep 2
-   touch /tmp/root/headunit.status
-   echo "=== headunit-usb ===" >> ${LOGPATH}
-   cat /tmp/root/headunit.json  >> ${LOGPATH}
-   echo "====================" >> ${LOGPATH}
-}
-
 iptables -A INPUT -p tcp --dport 30515 -m state --state NEW,ESTABLISHED -j ACCEPT
 
 rm -f /tmp/root/headunit.status /tmp/root/headunit-wireless.status
@@ -48,32 +37,14 @@ rm -f /tmp/root/headunit.status /tmp/root/headunit-wireless.status
 # prevent conflict by Official AA
 killall -q -9 aap_service carplayd L_jciCARPLAY L_jciAAPA
 
-#default USB
-start_headunit
-
 # loop forever. every 5 seconds,
 while true
 do
-
- if [ -e /tmp/root/usb_connect ]; then
-  USBCHECK=1
-  # echo "USB attach" >> ${LOGPATH}
- else
-  USBCHECK=0
-  # echo "USB detach" >> ${LOGPATH}
- fi
-
-    # echo "USB Mode" >> ${LOGPATH}
-    check_headunit=`ps|grep 'bin/headunit'|grep -v wrapper|grep -v grep|wc -l|awk '{print $1}'`
-    # echo "check_headunit = $check_headunit" >> ${LOGPATH}
-
-    [ $check_headunit -eq 0 ] && rm -f /tmp/root/headunit-wireless.status /tmp/root/headunit.status
-
-    if ! [ -e /tmp/root/headunit.status ]; then
-        echo "Start Headunit (USB Mode)"
-        echo "Start USB" >> ${LOGPATH}
-        start_headunit
-    fi
+  "${SCRIPTPATH}/headunit"
+  retVal=$?
+  if [ $retVal -eq 0 ]; then
+    break;
+  fi
 
  RAND=`expr $RANDOM % 5 + 3`
  #echo "go sleep $RAND"

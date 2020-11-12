@@ -15,8 +15,10 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <arpa/inet.h>
+#include <future>
 
 #include "hu.pb.h"
+#include "../main.h"
 
 #define LOGTAG "mazda-bt"
 
@@ -29,6 +31,8 @@ char IP_ADDRESS[16];
 char MAC_ADDRESS[18];
 
 DBus::BusDispatcher wireless_dispatcher;
+
+std::promise<int> * promise;
 
 
 void sendMessage(int fd, google::protobuf::MessageLite &message, uint16_t type) {
@@ -92,7 +96,8 @@ void handle_connect(char *pty){
 
     sendMessage(fd, request, 1);
 
-    logd("PTY opened");
+    promise->set_value(HU_MODE::WIFI_AP);
+
     ssize_t len = 0;
     int loop = 1;
     while (loop) {
@@ -146,14 +151,7 @@ void BCAClient::ConnectionStatusResp(
 
 void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <std::vector<uint8_t>> &data) {
     update_ip_mac(); //update our information, in case it changed from the start
-    char mac[18];
     char pty[100];
-    logd("Signal Connected:");
-    logd("\tType: %u", type);
-    std::copy(data._1.begin() + 14, data._1.begin() + 32, mac);
-    mac[17] = '\0';
-    logd("\tMAC: %s", mac);
-    logd("\tService ID: %u", data._1[36]);
     if (data._1[36] == 15) {
         std::strncpy(pty, (char *) &data._1[48], 100);
         logd("\tPTY: %s", pty);
@@ -217,7 +215,8 @@ void update_ip_mac(){
 }
 
 
-void wireless_thread() {
+void wireless_thread(std::promise<int> * promObj) {
+    promise = promObj;
     static BDSClient *bds_client = nullptr;
 
     static BCAClient *bca_client = nullptr;

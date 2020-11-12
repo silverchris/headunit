@@ -18,10 +18,12 @@
 #include <thread>
 #include <unistd.h>
 
+
 #include <dbus-c++/dbus.h>
 #include <dbus-c++/glib-integration.h>
 #include <sys/time.h>
 #include <sys/stat.h>
+#include <future>
 
 #include "hu_uti.h"
 #include "hu_aap.h"
@@ -29,6 +31,7 @@
 #include "gps/mzd_gps.h"
 #include "hud/hud.h"
 #include "wireless/wireless.h"
+#include "usb/usb.h"
 
 #include "audio.h"
 #include "main.h"
@@ -200,7 +203,9 @@ public:
     }
 };
 
-int run(DBus::Connection& serviceBus, DBus::Connection& hmiBus){
+
+
+int run(int mode, DBus::Connection& serviceBus, DBus::Connection& hmiBus){
     MazdaCommandServerCallbacks commandCallbacks;
     CommandServer commandServer(commandCallbacks);
     printf("headunit version: %s \n", commandCallbacks.GetVersion().c_str());
@@ -216,11 +221,17 @@ int run(DBus::Connection& serviceBus, DBus::Connection& hmiBus){
     g_hu = &headunit.GetAnyThreadInterface();
     commandCallbacks.eventCallbacks = &callbacks;
 
-    //This needs to be started before we headunit starts waiting for a connection
-    std::thread wireless_handle(wireless_thread);
-
+    std::condition_variable quitcv;
+    std::mutex quitmutex;
+    std::mutex hudmutex;
+    int ret;
+    if(mode == 1){
+        ret = headunit.hu_aap_start(HU_TRANSPORT_TYPE::USB, config::phoneIpAddress, true);
+    } else if (mode ==2 ){
+        std::string phoneIpAddress("0.0.0.0");
+        ret = headunit.hu_aap_start(HU_TRANSPORT_TYPE::WIFI, phoneIpAddress, true);
+    }
     //Wait forever for a connection
-    int ret = headunit.hu_aap_start(config::transport_type, config::phoneIpAddress, true);
     if (ret < 0) {
         loge("Something bad happened");
         return 1;
@@ -228,10 +239,6 @@ int run(DBus::Connection& serviceBus, DBus::Connection& hmiBus){
 
     gst_app.loop = g_main_loop_new(run_on_thread_main_context, FALSE);
     callbacks.connected = true;
-
-    std::condition_variable quitcv;
-    std::mutex quitmutex;
-    std::mutex hudmutex;
 
     std::thread nm_thread([&quitcv, &quitmutex](){ nightmode_thread_func(quitcv, quitmutex); } );
     std::thread gp_thread([&quitcv, &quitmutex, &serviceBus](){ gps_thread_func(quitcv, quitmutex, serviceBus); } );
@@ -255,38 +262,17 @@ int run(DBus::Connection& serviceBus, DBus::Connection& hmiBus){
     //wake up night mode  and gps polling threads
     quitcv.notify_all();
 
-    int thread_count = 4;
-    while(thread_count > 0){
-        if(nm_thread.joinable()){
-            printf("waiting for nm_thread\n");
-            nm_thread.join();
-            thread_count--;
-        }
+    printf("waiting for nm_thread\n");
+    nm_thread.join();
 
-        if(gp_thread.joinable()){
-            printf("waiting for gps_thread\n");
-            mzd_gps2_stop();
-            gp_thread.join();
-            thread_count--;
-        }
+    printf("waiting for gps_thread\n");
+    mzd_gps2_stop();
+    gp_thread.join();
 
-        if(wireless_handle.joinable()) {
-            printf("waiting for wireless_thread\n");
-            wireless_stop();
-            wireless_handle.join();
-            thread_count--;
-        }
 
-        if(hud_thread != nullptr){
-            if(hud_thread->joinable()){
-                printf("waiting for hud_thread\n");
-                hud_thread->join();
-                thread_count--;
-            }
-        }
-        else{
-            thread_count--;
-        }
+    if(hud_thread != nullptr){
+        printf("waiting for hud_thread\n");
+        hud_thread->join();
     }
 
     printf("shutting down\n");
@@ -344,10 +330,27 @@ int main (int argc, char *argv[])
             return 0;
         }
 
+
+
         config::readConfig();
         printf("Looping\n");
         while (!exiting)
         {
+            std::atomic<bool> detection_done(false);
+            std::promise<int> promiseObj;
+            std::shared_future<int> futureObj = promiseObj.get_future();
+            //This needs to be started before we headunit starts waiting for a connection
+            std::thread wireless_handle(wireless_thread, &promiseObj);
+            std::thread usb_thread(udev_thread_func, &promiseObj, &detection_done);
+
+            int mode = futureObj.get();
+            detection_done.store(true, std::memory_order_relaxed);
+
+            wireless_stop();
+            wireless_handle.join();
+            usb_thread.join();
+
+
             //Make a new one instead of using the default so we can clean it up each run
             run_on_thread_main_context = g_main_context_new();
             //Recreate this each time, it makes the error handling logic simpler
@@ -366,7 +369,7 @@ int main (int argc, char *argv[])
 
             static BLMSystemClient *blmsystem_client = new BLMSystemClient(serviceBus, "/com/jci/blm/system", "com.jci.blmsystem.Interface");
 
-            ret = run(serviceBus, hmiBus);
+            ret = run(mode,serviceBus, hmiBus);
 
             g_main_context_unref(run_on_thread_main_context);
             run_on_thread_main_context = nullptr;
