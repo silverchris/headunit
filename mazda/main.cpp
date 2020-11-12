@@ -36,18 +36,16 @@ IHUAnyThreadInterface* g_hu = nullptr;
 std::atomic<bool> exiting;
 
 static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &quitmutex) {
-    char gpio_value[3];
-    int fd = open("/sys/class/gpio/CAN_Day_Mode/value", O_RDONLY);
-    if (-1 == fd) {
-        loge("Failed to open CAN_Day_Mode gpio value for reading");
-    } else {
-        //Offset so the GPS and NM thread are not perfectly in sync testing each second
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    //Offset so the GPS and NM thread are not perfectly in sync testing each second
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-        while (!exiting) {
-            if (-1 == read(fd, gpio_value, 3)) {
-                loge("Failed to read CAN_Day_Mode gpio value");
-            }
+    while (!exiting) {
+        char gpio_value[3];
+        FILE *fd = fopen("/sys/class/gpio/CAN_Day_Mode/value", "r");
+        if (fd == nullptr) {
+            loge("Failed to open CAN_Day_Mode gpio value for reading");
+        } else {
+            fread(gpio_value, 1, 2, fd);
             int nightmodenow = !atoi(gpio_value);
 
             if (nightmodenow) {
@@ -65,16 +63,16 @@ static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &q
 
                 s.hu_aap_enc_send_message(0, AA_CH_SEN, HU_SENSOR_CHANNEL_MESSAGE::SensorEvent, sensorEvent);
             });
-            {
-                std::unique_lock<std::mutex> lk(quitmutex);
-                if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout) {
-                    break;
-                }
+        }
+        fclose(fd);
+        {
+            std::unique_lock<std::mutex> lk(quitmutex);
+            if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout) {
+                break;
             }
         }
-        close(fd);
-        logd("Exiting");
     }
+    logd("Exiting");
 }
 
 
