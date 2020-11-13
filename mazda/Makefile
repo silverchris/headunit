@@ -17,7 +17,7 @@ CFLAGS=-O3 -g -rdynamic -pthread --sysroot=$(SYSROOT) -DCMU=1 -D__STDC_FORMAT_MA
 CXXFLAGS=$(CFLAGS) -std=c++11 -static-libstdc++ -D_GLIBCXX_USE_C99
 
 #static link  dbus-c++-glib-1 since it's not on the car
-LFLAGS= --sysroot=$(SYSROOT) -g -rdynamic -pthread -ldl -static-libstdc++ $(shell ./pkg-config-wrapper $(SYSROOT) --libs gstreamer-0.10 gstreamer-app-0.10 gstreamer-video-0.10 dbus-1 libusb-1.0 libcrypto openssl glib-2.0 dbus-c++-1 libudev alsa) -l:libdbus-c++-glib-1.a -L$(PROTOTOOLCHAIN)/lib -lprotobuf -L$(LIBUNWIND)/lib -lunwind
+LFLAGS= --sysroot=$(SYSROOT) -g -rdynamic -pthread -ldl -static-libstdc++ -s $(shell ./pkg-config-wrapper $(SYSROOT) --libs gstreamer-0.10 gstreamer-app-0.10 gstreamer-video-0.10 dbus-1 libusb-1.0 libcrypto openssl glib-2.0 dbus-c++-1 libudev alsa) -l:libdbus-c++-glib-1.a -L$(PROTOTOOLCHAIN)/lib -lprotobuf -L$(LIBUNWIND)/lib -lunwind
 
 #headunit binary
 SRCS = $(TOP)/hu/hu_aad.cpp
@@ -39,6 +39,7 @@ SRCS += bt/mzd_bluetooth.cpp
 
 SRCS += hud/hud.cpp
 SRCS += wireless/wireless.cpp
+SRCS += usb/usb.c
 
 SRCS += outputs.cpp
 SRCS += $(TOP)/common/config.cpp
