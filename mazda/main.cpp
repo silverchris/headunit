@@ -59,7 +59,7 @@ static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &q
             // other AA UI is already in nightmode.
             g_hu->hu_queue_command([nightmodenow](IHUConnectionThreadInterface &s) {
                 HU::SensorEvent sensorEvent;
-                sensorEvent.add_night_mode()->set_is_night(nightmodenow);
+                sensorEvent.add_night_mode()->set_is_night(static_cast<bool>(nightmodenow));
 
                 s.hu_aap_enc_send_message(0, AA_CH_SEN, HU_SENSOR_CHANNEL_MESSAGE::SensorEvent, sensorEvent);
             });

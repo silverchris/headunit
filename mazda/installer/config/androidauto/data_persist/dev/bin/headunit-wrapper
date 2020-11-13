@@ -1,6 +1,6 @@
 #!/bin/sh
 
-DEBUG=0
+DEBUG=1
 SCRIPT=$(readlink -f "$0")
 SCRIPTPATH=$(dirname "$SCRIPT")
 LOGPATH=/dev/null
@@ -40,7 +40,7 @@ killall -q -9 aap_service carplayd L_jciCARPLAY L_jciAAPA
 # loop forever. every 5 seconds,
 while true
 do
-  "${SCRIPTPATH}/headunit"
+  "${SCRIPTPATH}/headunit" > $LOGPATH 2>&1
   retVal=$?
   if [ $retVal -eq 0 ]; then
     break;

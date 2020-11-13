@@ -13,15 +13,13 @@
 #include "usb.h"
 #include "../main.h"
 
-#define LOGTAG "mazda-usb"
-
 #include "hu_uti.h"
 
 
 static int check_aoa(struct udev_device *device) {
     const char *action, *str;
-    uint16_t vid;
-    uint16_t pid;
+    uint16_t vid = 0;
+    uint16_t pid = 0;
 
     action = udev_device_get_action(device);
     if (action == nullptr) {
@@ -33,15 +31,18 @@ static int check_aoa(struct udev_device *device) {
 
     str = udev_device_get_sysattr_value(device, "idVendor");
     if (str != nullptr) {
-        vid = strtoul(str, nullptr, 16);
+        vid = static_cast<uint16_t>(std::stoi(str, nullptr, 16));
         printf("vid: %u\n", vid);
     }
     str = udev_device_get_sysattr_value(device, "idProduct");
     if (str != nullptr) {
-        pid = strtoul(str, nullptr, 16);
+        pid = static_cast<uint16_t>(std::stoi(str, nullptr, 16));
         printf("pid: %u\n", pid);
     }
 
+    if(vid == 0 || pid == 0){
+        return 0;
+    }
 
     if (vid == VEN_ID_GOOGLE) {
         if (pid == DEV_ID_OAP || pid == DEV_ID_OAP_WITH_ADB) {

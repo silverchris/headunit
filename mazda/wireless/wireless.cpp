@@ -20,8 +20,6 @@
 #include "hu.pb.h"
 #include "../main.h"
 
-#define LOGTAG "mazda-bt"
-
 #include "hu_uti.h"
 
 #define HMI_BUS_ADDRESS "unix:path=/tmp/dbus_hmi_socket"
