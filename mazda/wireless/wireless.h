@@ -147,5 +147,5 @@ int handleWifiInfoRequestResponse(int fd, uint8_t *buffer, uint16_t length);
 std::string hostapd_config(const std::string& key);
 void update_ip_mac();
 void wireless_stop();
-void wireless_thread(std::promise<int> * promObj);
+void wireless_thread(std::promise<int> * promObj, DBus::Connection *serviceBus, DBus::Connection *hmiBus);
 

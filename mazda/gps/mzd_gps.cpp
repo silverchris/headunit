@@ -133,8 +133,8 @@ void mzd_gps2_set_enabled(bool bEnabled)
 
 void mzd_gps2_stop()
 {
-//    gps_client.reset();
-//    gps_control.reset();
+    gps_client.reset();
+    gps_control.reset();
 }
 
 bool GPSData::IsSame(const GPSData& other) const
@@ -234,6 +234,7 @@ void gps_thread_func(std::condition_variable *quitcv, std::mutex *quitmutex, DBu
     }
 
     mzd_gps2_set_enabled(false);
+    mzd_gps2_stop();
     logd("Exiting");
 
 }

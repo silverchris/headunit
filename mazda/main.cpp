@@ -8,7 +8,6 @@
 
 
 #include <dbus-c++/dbus.h>
-#include <dbus-c++/glib-integration.h>
 
 #include "hu_uti.h"
 #include "hu_aap.h"
@@ -200,6 +199,12 @@ int run(int mode, DBus::Connection& serviceBus, DBus::Connection& hmiBus){
     return 0;
 }
 
+DBus::BusDispatcher dispatcher;
+
+void dbus_dispatcher() {
+    dispatcher.enter();
+}
+
 int main (int argc, char *argv[])
 {
     exiting = false;
@@ -216,6 +221,23 @@ int main (int argc, char *argv[])
     DBus::_init_threading();
 
     gst_init(&argc, &argv);
+    run_on_thread_main_context = g_main_context_new();
+
+    printf("DBus::Glib::BusDispatcher attached\n");
+
+    DBus::default_dispatcher = &dispatcher;
+    DBus::Connection hmiBus(HMI_BUS_ADDRESS, true);
+    hmiBus.register_bus();
+
+    DBus::Connection serviceBus(SERVICE_BUS_ADDRESS, true);
+    serviceBus.register_bus();
+
+    static auto *blmsystem_client = new BLMSystemClient(serviceBus, "/com/jci/blm/system", "com.jci.blmsystem.Interface");
+
+    std::thread dbus_thread(dbus_dispatcher);
+
+
+
     int ret;
     try
     {
@@ -237,43 +259,21 @@ int main (int argc, char *argv[])
             std::promise<int> promiseObj;
             std::shared_future<int> futureObj = promiseObj.get_future();
             //This needs to be started before we headunit starts waiting for a connection
-            std::thread wireless_handle(wireless_thread, &promiseObj);
+            wireless_thread(&promiseObj, &serviceBus, &hmiBus);
             std::thread usb_thread(udev_thread_func, &promiseObj, &detection_done);
 
             int mode = futureObj.get();
             detection_done.store(true, std::memory_order_relaxed);
 
             wireless_stop();
-            wireless_handle.join();
             usb_thread.join();
-
-
-            //Make a new one instead of using the default so we can clean it up each run
-            run_on_thread_main_context = g_main_context_new();
-            //Recreate this each time, it makes the error handling logic simpler
-            DBus::Glib::BusDispatcher dispatcher;
-            dispatcher.attach(run_on_thread_main_context);
-            printf("DBus::Glib::BusDispatcher attached\n");
-
-            DBus::default_dispatcher = &dispatcher;
-
-            printf("Making debug connections\n");
-            DBus::Connection hmiBus(HMI_BUS_ADDRESS, false);
-            hmiBus.register_bus();
-
-            DBus::Connection serviceBus(SERVICE_BUS_ADDRESS, false);
-            serviceBus.register_bus();
-
-            static auto *blmsystem_client = new BLMSystemClient(serviceBus, "/com/jci/blm/system", "com.jci.blmsystem.Interface");
 
             ret = run(mode,serviceBus, hmiBus);
 
-            g_main_context_unref(run_on_thread_main_context);
-            run_on_thread_main_context = nullptr;
 
-            printf("Disconnecting DBus\n");
-            hmiBus.disconnect();
-            serviceBus.disconnect();
+//            printf("Disconnecting DBus\n");
+//            hmiBus.disconnect();
+//            serviceBus.disconnect();
 //            DBus::default_dispatcher = nullptr;
         }
     }
@@ -282,6 +282,12 @@ int main (int argc, char *argv[])
         loge("DBUS Error: %s: %s", error.name(), error.message());
         return 1;
     }
+
+    delete blmsystem_client;
+    dispatcher.leave();
+    dbus_thread.join();
+    g_main_context_unref(run_on_thread_main_context);
+    run_on_thread_main_context = nullptr;
 
     return ret;
 }

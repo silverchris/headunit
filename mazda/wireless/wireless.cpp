@@ -22,19 +22,18 @@
 
 #include "hu_uti.h"
 
-#define HMI_BUS_ADDRESS "unix:path=/tmp/dbus_hmi_socket"
-#define SERVICE_BUS_ADDRESS "unix:path=/tmp/dbus_service_socket"
+BDSClient *bds_client = nullptr;
+
+BCAClient *bca_client = nullptr;
 
 char IP_ADDRESS[16];
 char MAC_ADDRESS[18];
-
-DBus::BusDispatcher wireless_dispatcher;
 
 std::promise<int> * promise;
 
 
 void sendMessage(int fd, google::protobuf::MessageLite &message, uint16_t type) {
-    auto byteSize = static_cast<size_t>(message.ByteSize());
+    auto byteSize = static_cast<size_t>(message.ByteSizeLong());
     auto sizeOut = static_cast<uint16_t>(htobe16(byteSize));
     auto typeOut = static_cast<uint16_t>(htobe16(type));
     char *out = (char *) malloc(byteSize + 4);
@@ -47,7 +46,7 @@ void sendMessage(int fd, google::protobuf::MessageLite &message, uint16_t type) 
     if (written > -1) {
         logd("Bytes written: %u", written);
     } else {
-        logd("Could not write data");
+        loge("Could not write data");
     }
     free(out);
 }
@@ -137,8 +136,9 @@ void BCAClient::ConnectionStatusResp(
         const uint32_t &btDeviceId,
         const uint32_t &status,
         const ::DBus::Struct <std::vector<uint8_t>> &terminalPath) {
-    update_ip_mac();
+    logd("Saw Service: %u", serviceId);
     if (serviceId == 15 && connStatus == 3) {
+        update_ip_mac();
         char *pty = (char *) malloc(terminalPath._1.size());
         std::copy(terminalPath._1.begin(), terminalPath._1.end(), pty);
         logd("\tPTY: %s", pty);
@@ -148,9 +148,10 @@ void BCAClient::ConnectionStatusResp(
 }
 
 void BDSClient::SignalConnected_cb(const uint32_t &type, const ::DBus::Struct <std::vector<uint8_t>> &data) {
-    update_ip_mac(); //update our information, in case it changed from the start
     char pty[100];
+    logd("Saw Service: %u", data._1[36]);
     if (data._1[36] == 15) {
+        update_ip_mac();
         std::strncpy(pty, (char *) &data._1[48], 100);
         logd("\tPTY: %s", pty);
         handle_connect(pty);
@@ -187,7 +188,8 @@ std::string hostapd_config(const std::string& key) {
 
 
 void wireless_stop(){
-    wireless_dispatcher.leave();
+    delete bds_client;
+    delete bca_client;
 }
 
 void update_ip_mac(){
@@ -213,37 +215,21 @@ void update_ip_mac(){
 }
 
 
-void wireless_thread(std::promise<int> * promObj) {
+void wireless_thread(std::promise<int> * promObj, DBus::Connection *serviceBus, DBus::Connection *hmiBus) {
     promise = promObj;
-    static BDSClient *bds_client = nullptr;
 
-    static BCAClient *bca_client = nullptr;
-    DBus::default_dispatcher = &wireless_dispatcher;
-
-    logd("DBus::Glib::BusDispatcher attached");
-
-    try {
-        struct stat buffer{};
-        while(stat("/tmp/current-session-hostapd.conf", &buffer) != 0){
-            sleep(1);
-        }
-        while(stat("/tmp/current-session-udhcpd.conf", &buffer) != 0){
-            sleep(1);
-        }
-        DBus::Connection hmi_bus(HMI_BUS_ADDRESS, false);
-        hmi_bus.register_bus();
-        DBus::Connection service_bus(SERVICE_BUS_ADDRESS, false);
-        service_bus.register_bus();
-        bds_client = new BDSClient(service_bus, "/com/jci/bds", "com.jci.bds");
-        bca_client = new BCAClient(hmi_bus, "/com/jci/bca", "com.jci.bca");
-
-        bca_client->StartAdd(15);
-
-
-        wireless_dispatcher.enter();
-        logd("Exiting");
+    struct stat buffer{};
+    while(stat("/tmp/current-session-hostapd.conf", &buffer) != 0){
+        sleep(1);
     }
-    catch (DBus::Error &error) {
-        loge("DBUS: Failed to connect to SERVICE bus %s: %s", error.name(), error.message());
+    while(stat("/tmp/current-session-udhcpd.conf", &buffer) != 0){
+        sleep(1);
     }
+
+    bds_client = new BDSClient(*serviceBus, "/com/jci/bds", "com.jci.bds");
+    bca_client = new BCAClient(*hmiBus, "/com/jci/bca", "com.jci.bca");
+
+    bca_client->StartAdd(15);
+
+
 }
