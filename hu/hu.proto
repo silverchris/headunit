@@ -1,6 +1,8 @@
 syntax = "proto2";
 option cc_generic_services = false;
 
+option optimize_for = LITE_RUNTIME;
+
 package HU;
 
 enum STATUS
