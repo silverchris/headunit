@@ -674,7 +674,6 @@ void MazdaEventCallbacks::HandleNaviStatus(IHUConnectionThreadInterface& stream,
   }
 }
 
-void logUnknownFields(const ::google::protobuf::UnknownFieldSet& fields);
 
 void MazdaEventCallbacks::HandleNaviTurn(IHUConnectionThreadInterface& stream, const HU::NAVTurnMessage &request){
     if (navi_data == nullptr){
@@ -687,7 +686,6 @@ void MazdaEventCallbacks::HandleNaviTurn(IHUConnectionThreadInterface& stream, c
       request.turn_angle(),
       request.event_name().c_str()
   );
-  logUnknownFields(request.unknown_fields());
 
   hudmutex.lock();
   int changed = 0;
@@ -754,7 +752,6 @@ void MazdaEventCallbacks::HandleNaviTurnDistance(IHUConnectionThreadInterface& s
             request.display_distance(),
             request.display_distance_unit()
         );
-        logUnknownFields(request.unknown_fields());
 
         if (request.distance() > 1000) {
             now_distance = request.distance() / 100;
@@ -785,51 +782,4 @@ void MazdaEventCallbacks::HandleNaviTurnDistance(IHUConnectionThreadInterface& s
   }
 
   hudmutex.unlock();
-}
-
-void logUnknownFields(const ::google::protobuf::UnknownFieldSet& fields) {
-  for (int i = 0; i < fields.field_count(); i++) {
-    switch (fields.field(i).type()) {
-        case 0: // TYPE_VARINT
-            logw("ExtraField: number: %d, type: %d, value: %d", 
-                fields.field(i).number(),
-                0,
-                fields.field(i).varint()
-            );
-            break;
-        case 1: // TYPE_FIXED32
-            logw("ExtraField: number: %d, type: %d, value: %d", 
-                fields.field(i).number(),
-                1,
-                fields.field(i).fixed32()
-            );
-            break;
-        case 2: // TYPE_FIXED64
-            logw("ExtraField: number: %d, type: %d, value: %d", 
-                fields.field(i).number(),
-                2,
-                fields.field(i).fixed64()
-            );
-            break;
-        case 3: // TYPE_LENGTH_DELIMITED
-            logw("ExtraField: number: %d, type: %d, value: %s", 
-                fields.field(i).number(),
-                3,
-                &(fields.field(i).length_delimited())
-            );
-            break;
-        case 4: // TYPE_GROUP
-            logw("ExtraField: number: %d, type: %d", 
-                fields.field(i).number(),
-                4
-            );
-            break;
-        default:
-            logw("ExtraField: number: %d, type: %d", 
-                fields.field(i).number(),
-                fields.field(i).type()
-            );
-            break;
-    }
-  }
 }
