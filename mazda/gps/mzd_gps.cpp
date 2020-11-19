@@ -6,8 +6,6 @@
 
 #include "../dbus/generated_cmu.h"
 
-#define LOGTAG "mazda-gps"
-
 #include "hu_uti.h"
 #include "hu_aap.h"
 
@@ -30,14 +28,14 @@ class GPSLDSCLient : public com::jci::lds::data_proxy,
         public DBus::ObjectProxy
 {
 public:
-    GPSLDSCLient(DBus::Connection &connection)
+    explicit GPSLDSCLient(DBus::Connection &connection)
         : DBus::ObjectProxy(connection, "/com/jci/lds/data", "com.jci.lds.data")
     {
     }
 
-    virtual void GPSDiagnostics(const uint8_t& dTCId, const uint8_t& dTCAction) override {}
-    virtual void OneTimeDRDiagnostics(const std::string& dRUnitVersion, const int32_t& antennaStatus, const bool& gyroSelfTest, const bool& accelSelfTest, const bool& resetLearning, const bool& saveLearning) override {}
-    virtual void PeriodicDRDiagnostics(const int32_t& dRUnitStatus, const int32_t& speedPulse, const bool& reverse, const int32_t& dRUnitMode, const int32_t& gyroStatus, const int32_t& accelStatus) override {}
+    void GPSDiagnostics(const uint8_t& dTCId, const uint8_t& dTCAction) override {}
+    void OneTimeDRDiagnostics(const std::string& dRUnitVersion, const int32_t& antennaStatus, const bool& gyroSelfTest, const bool& accelSelfTest, const bool& resetLearning, const bool& saveLearning) override {}
+    void PeriodicDRDiagnostics(const int32_t& dRUnitStatus, const int32_t& speedPulse, const bool& reverse, const int32_t& dRUnitMode, const int32_t& gyroStatus, const int32_t& accelStatus) override {}
 
 };
 
@@ -45,12 +43,12 @@ class GPSLDSControl : public com::jci::lds::control_proxy,
         public DBus::ObjectProxy
 {
 public:
-    GPSLDSControl(DBus::Connection &connection)
+    explicit GPSLDSControl(DBus::Connection &connection)
         : DBus::ObjectProxy(connection, "/com/jci/lds/control", "com.jci.lds.control")
     {
     }
 
-    virtual void ReadStatus(const int32_t& commandReply, const int32_t& status) override;
+    void ReadStatus(const int32_t& commandReply, const int32_t& status) override;
 };
 
 static std::unique_ptr<GPSLDSCLient> gps_client;
@@ -157,7 +155,7 @@ bool GPSData::IsSame(const GPSData& other) const
 void gps_thread_func(std::condition_variable *quitcv, std::mutex *quitmutex, DBus::Connection *serviceBus, std::atomic<bool> *exiting)
 {
     GPSData data, newData;
-    uint64_t oldTs = 0;
+    time_t oldTs = 0;
     int debugLogCount = 0;
     mzd_gps2_start(*serviceBus);
 
@@ -173,7 +171,7 @@ void gps_thread_func(std::condition_variable *quitcv, std::mutex *quitmutex, DBu
             data = newData;
             timeval tv{};
             gettimeofday(&tv, nullptr);
-            uint64_t timestamp = tv.tv_sec * 1000000 + tv.tv_usec;
+            time_t timestamp = tv.tv_sec * 1000000 + tv.tv_usec;
             if (debugLogCount < 50) //only print the first 50 to avoid spamming the log and breaking the opera text box
             {
                 logd("GPS data: %d %d %f %f %d %f %f %f %f   \n",data.positionAccuracy, data.uTCtime, data.latitude, data.longitude, data.altitude, data.heading, data.velocity, data.horizontalAccuracy, data.verticalAccuracy);
@@ -188,7 +186,7 @@ void gps_thread_func(std::condition_variable *quitcv, std::mutex *quitmutex, DBu
                                        HU::SensorEvent::LocationData* location = sensorEvent.add_location_data();
                                        //AA uses uS and the gps data just has seconds, just use the current time to get more precision so AA can
                                        //interpolate better
-                                       location->set_timestamp(timestamp);
+                                       location->set_timestamp(static_cast<unsigned long long int>(timestamp));
                                        location->set_latitude(static_cast<int32_t>(data.latitude * 1E7));
                                        location->set_longitude(static_cast<int32_t>(data.longitude * 1E7));
 
@@ -218,7 +216,7 @@ void gps_thread_func(std::condition_variable *quitcv, std::mutex *quitmutex, DBu
                                        location->set_speed(static_cast<int32_t>(velocityMetersPerSecond * 1E3));
 
                                        location->set_altitude(static_cast<int32_t>(data.altitude * 1E2));
-                                       location->set_accuracy(static_cast<int32_t>(data.horizontalAccuracy * 1E3));
+                                       location->set_accuracy(static_cast<unsigned int>(data.horizontalAccuracy * 1E3));
 
                                        s.hu_aap_enc_send_message(0, AA_CH_SEN, HU_SENSOR_CHANNEL_MESSAGE::SensorEvent, sensorEvent);
                                    });
