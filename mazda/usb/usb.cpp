@@ -2,7 +2,6 @@
 // Created by silverchris on 2020-11-12.
 //
 
-#include <cstdio>
 #include <cstdlib>
 #include <libudev.h>
 #include <libusb.h>
@@ -23,21 +22,21 @@ static int check_aoa(struct udev_device *device) {
 
     action = udev_device_get_action(device);
     if (action == nullptr) {
-        printf("No action got\n");
+        logd("No action got\n");
         return 0;
     }
 
-    printf("@@ [%s] Action=%s\n", __func__, action);
+    logd("@@ [%s] Action=%s\n", __func__, action);
 
     str = udev_device_get_sysattr_value(device, "idVendor");
     if (str != nullptr) {
         vid = static_cast<uint16_t>(std::stoi(str, nullptr, 16));
-        printf("vid: %u\n", vid);
+        logd("vid: %u\n", vid);
     }
     str = udev_device_get_sysattr_value(device, "idProduct");
     if (str != nullptr) {
         pid = static_cast<uint16_t>(std::stoi(str, nullptr, 16));
-        printf("pid: %u\n", pid);
+        logd("pid: %u\n", pid);
     }
 
     if(vid == 0 || pid == 0){
@@ -52,14 +51,14 @@ static int check_aoa(struct udev_device *device) {
 
     str = udev_device_get_devnode(device);
     if (str != nullptr) {
-        printf("devnode: %s\n", str);
+        logd("devnode: %s\n", str);
     }
 
     int ret;
     uint8_t buffer[2];
     ret = libusb_init(nullptr);
     if (ret != 0) {
-        printf("libusb init failed: %d\n", ret);
+        loge("libusb init failed: %d\n", ret);
         return 0;
     }
 
@@ -67,7 +66,7 @@ static int check_aoa(struct udev_device *device) {
     /* Trying to open it */
     libusb_device_handle *handle = libusb_open_device_with_vid_pid(nullptr, vid, pid);
     if (handle == nullptr) {
-        printf("Unable to open device...\n");
+        loge("Unable to open device...\n");
         return 0;
     }
 
@@ -76,11 +75,11 @@ static int check_aoa(struct udev_device *device) {
                                   AOA_GET_PROTOCOL, 0, 0, buffer,
                                   sizeof(buffer), 0);
     if (ret < 0) {
-        printf("Error getting protocol...\n");
+        loge("Error getting protocol...\n");
         ret = 0;
     } else {
         int aoa_version = ((buffer[1] << 8) | buffer[0]);
-        printf("Device supports AOA %d.0!\n", aoa_version);
+        logd("Device supports AOA %d.0!\n", aoa_version);
         ret = 1;
     }
 
@@ -91,7 +90,7 @@ static int check_aoa(struct udev_device *device) {
 
 void udev_thread_func(std::promise<int> *promObj, std::atomic<bool> *detection_done) {
     struct udev *udev;
-    struct udev_monitor *udev_monitor = nullptr;
+    struct udev_monitor *udev_monitor;
     int ret, fdcount;
     fd_set readfds;
     struct udev_device *device;
@@ -99,53 +98,42 @@ void udev_thread_func(std::promise<int> *promObj, std::atomic<bool> *detection_d
 
     udev = udev_new();
     if (udev == nullptr) {
-        printf("Error: udev_new\n");
+        loge("Error: udev_new\n");
         return;
     }
 
-
     udev_monitor = udev_monitor_new_from_netlink(udev, "udev");
     if (udev_monitor == nullptr) {
-        printf("Error: udev_monitor_new_from_netlink\n");
+        loge("Error: udev_monitor_new_from_netlink\n");
         return;
     }
 
     /* Add some filter */
-    ret = udev_monitor_filter_add_match_subsystem_devtype(udev_monitor,
-                                                          "usb",
-                                                          "usb_device");
+    ret = udev_monitor_filter_add_match_subsystem_devtype(udev_monitor,"usb",nullptr); //"usb_device");
     if (ret < 0) {
-        printf("Error: filter_add_match_subsystem_devtype\n");
+        loge("Error: filter_add_match_subsystem_devtype\n");
         return;
     }
 
     ret = udev_monitor_enable_receiving(udev_monitor);
     if (ret < 0) {
-        printf("udev_monitor_enable_receiving Failed < 0\n");
+        loge("udev_monitor_enable_receiving Failed < 0\n");
         return;
     }
     while (!detection_done->load(std::memory_order_relaxed)) {
         FD_ZERO(&readfds);
 
-        if (udev_monitor != nullptr) {
-            FD_SET(udev_monitor_get_fd(udev_monitor), &readfds);
-        }
+        FD_SET(udev_monitor_get_fd(udev_monitor), &readfds);
 
         struct timeval tv = {0, 250000};
-        fdcount = select(udev_monitor_get_fd(udev_monitor) + 1,
-                         &readfds, nullptr, nullptr, &tv);
+        fdcount = select(udev_monitor_get_fd(udev_monitor) + 1, &readfds, nullptr, nullptr, &tv);
+
         if (fdcount < 0) {
             if (errno != EINTR) {
-                printf("Receive Signal!!\n");
+                loge("Receive Signal!!\n");
                 return;
             }
             continue;
-        }
-
-        if (udev_monitor == nullptr) {
-            printf("@@ udev_monitor is NULL(check1)\n");
-            continue;
-//			return -1;
         }
 
         if (!FD_ISSET(udev_monitor_get_fd(udev_monitor), &readfds)) {
@@ -154,7 +142,7 @@ void udev_thread_func(std::promise<int> *promObj, std::atomic<bool> *detection_d
 
         device = udev_monitor_receive_device(udev_monitor);
         if (device == nullptr) {
-            printf("@@ receive device is not found(check2)\n");
+            loge("@@ receive device is not found(check2)\n");
             continue;
         }
         if (check_aoa(device)) {
@@ -163,6 +151,5 @@ void udev_thread_func(std::promise<int> *promObj, std::atomic<bool> *detection_d
         }
     }
     udev_unref(udev);
-    logd("Exiting");
 
 }
