@@ -193,7 +193,7 @@ VideoManagerClient::~VideoManagerClient() {
     //We can't call release video focus since the callbacks object is being destroyed, but make sure we got to opera if no in backup cam
     if (allowedToGetFocus) {
         logd("Requesting video surface: JCI_OPERA_PRIMARY");
-        guiClient.SetRequiredSurfacesByEnum({NativeGUICtrlClient::JCI_OPERA_PRIMARY}, true);
+        guiClient.SetRequiredSurfacesByEnum(NativeGUICtrlClient::JCI_OPERA_PRIMARY, true);
     }
 }
 
@@ -211,7 +211,7 @@ void VideoManagerClient::requestVideoFocus(VIDEO_FOCUS_REQUESTOR requestor)
     auto handleRequest = [this, unrequested](){
         callbacks.VideoFocusHappened(true, unrequested);
         logd("Requesting video surface: TV_TOUCH_SURFACE");
-        guiClient.SetRequiredSurfacesByEnum({NativeGUICtrlClient::TV_TOUCH_SURFACE}, true);
+        guiClient.SetRequiredSurfacesByEnum(NativeGUICtrlClient::TV_TOUCH_SURFACE, true);
         return false;
     };
     if (requestor == VIDEO_FOCUS_REQUESTOR::BACKUP_CAMERA)
@@ -237,7 +237,7 @@ void VideoManagerClient::releaseVideoFocus(VIDEO_FOCUS_REQUESTOR requestor)
     callbacks.VideoFocusHappened(false, unrequested);
     if (requestor != VIDEO_FOCUS_REQUESTOR::BACKUP_CAMERA) {
         logd("Requesting video surface: JCI_OPERA_PRIMARY");
-        guiClient.SetRequiredSurfacesByEnum({NativeGUICtrlClient::JCI_OPERA_PRIMARY}, true);
+        guiClient.SetRequiredSurfacesByEnum(NativeGUICtrlClient::JCI_OPERA_PRIMARY, true);
     }
 }
 
