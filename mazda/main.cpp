@@ -20,7 +20,6 @@
 #include "main.h"
 #include "command_server.h"
 #include "callbacks.h"
-#include "glib_utils.h"
 #include "config.h"
 
 #define HMI_BUS_ADDRESS "unix:path=/tmp/dbus_hmi_socket"
@@ -34,44 +33,33 @@ IHUAnyThreadInterface* g_hu = nullptr;
 
 std::atomic<bool> exiting;
 
-static void nightmode_thread_func(std::condition_variable &quitcv, std::mutex &quitmutex) {
-    //Offset so the GPS and NM thread are not perfectly in sync testing each second
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+static gboolean nightmode_func(gpointer __attribute__((unused)) user_data) {
+    char gpio_value[3];
+    FILE *fd = fopen("/sys/class/gpio/CAN_Day_Mode/value", "r");
+    if (fd == nullptr) {
+        loge("Failed to open CAN_Day_Mode gpio value for reading");
+    } else {
+        fread(gpio_value, 1, 2, fd);
+        int nightmodenow = !atoi(gpio_value);
 
-    while (!exiting) {
-        char gpio_value[3];
-        FILE *fd = fopen("/sys/class/gpio/CAN_Day_Mode/value", "r");
-        if (fd == nullptr) {
-            loge("Failed to open CAN_Day_Mode gpio value for reading");
+        if (nightmodenow) {
+            logd("It's night now, %i", nightmodenow);
         } else {
-            fread(gpio_value, 1, 2, fd);
-            int nightmodenow = !atoi(gpio_value);
-
-            if (nightmodenow) {
-                logd("It's night now, %i", nightmodenow);
-            } else {
-                logd("It's day now, %i", nightmodenow);
-            }
-
-            // We send nightmode status periodically, otherwise Google Maps
-            // doesn't switch to nightmode if it's started late. Even if the
-            // other AA UI is already in nightmode.
-            g_hu->hu_queue_command([nightmodenow](IHUConnectionThreadInterface &s) {
-                HU::SensorEvent sensorEvent;
-                sensorEvent.add_night_mode()->set_is_night(static_cast<bool>(nightmodenow));
-
-                s.hu_aap_enc_send_message(0, AA_CH_SEN, HU_SENSOR_CHANNEL_MESSAGE::SensorEvent, sensorEvent);
-            });
+            logd("It's day now, %i", nightmodenow);
         }
-        fclose(fd);
-        {
-            std::unique_lock<std::mutex> lk(quitmutex);
-            if (quitcv.wait_for(lk, std::chrono::milliseconds(1000)) == std::cv_status::no_timeout) {
-                break;
-            }
-        }
+
+        // We send nightmode status periodically, otherwise Google Maps
+        // doesn't switch to nightmode if it's started late. Even if the
+        // other AA UI is already in nightmode.
+        g_hu->hu_queue_command([nightmodenow](IHUConnectionThreadInterface &s) {
+            HU::SensorEvent sensorEvent;
+            sensorEvent.add_night_mode()->set_is_night(static_cast<bool>(nightmodenow));
+
+            s.hu_aap_enc_send_message(0, AA_CH_SEN, HU_SENSOR_CHANNEL_MESSAGE::SensorEvent, sensorEvent);
+        });
     }
-    logd("Exiting");
+    fclose(fd);
+    return true;
 }
 
 
@@ -120,7 +108,7 @@ int run(int mode, DBus::Connection& serviceBus, DBus::Connection& hmiBus){
     std::condition_variable quitcv;
     std::mutex quitmutex;
     std::mutex hudmutex;
-    int ret;
+    int ret = 0;
     if(mode == 1){
         ret = headunit.hu_aap_start(HU_TRANSPORT_TYPE::USB, config::phoneIpAddress, true);
     } else if (mode ==2 ){
@@ -133,11 +121,10 @@ int run(int mode, DBus::Connection& serviceBus, DBus::Connection& hmiBus){
         return 1;
     }
 
-    gst_app.loop = g_main_loop_new(run_on_thread_main_context, FALSE);
+    gst_app.loop = g_main_loop_new(nullptr, FALSE);
     callbacks.connected = true;
 
-    std::thread nm_thread([&quitcv, &quitmutex](){ nightmode_thread_func(quitcv, quitmutex); } );
-    std::thread gp_thread(gps_thread_func, &quitcv, &quitmutex, &serviceBus, &exiting);
+    mzd_gps2_start(serviceBus);
     std::thread *hud_thread = nullptr;
     if(hud_installed()){
         hud_thread = new std::thread([&quitcv, &quitmutex, &hudmutex](){ hud_thread_func(quitcv, quitmutex, hudmutex, exiting); } );
@@ -147,6 +134,8 @@ int run(int mode, DBus::Connection& serviceBus, DBus::Connection& hmiBus){
 
     printf("Starting Android Auto...\n");
 
+    guint gps_handle = g_timeout_add(250, gps_func, nullptr);
+    guint night_handle = g_timeout_add(1000, nightmode_func, nullptr);
     g_main_loop_run (gst_app.loop);
 
     callbacks.connected = false;
@@ -158,12 +147,7 @@ int run(int mode, DBus::Connection& serviceBus, DBus::Connection& hmiBus){
     //wake up night mode  and gps polling threads
     quitcv.notify_all();
 
-    printf("waiting for nm_thread\n");
-    nm_thread.join();
-
-    printf("waiting for gps_thread\n");
     mzd_gps2_stop();
-    gp_thread.join();
 
 
     if(hud_thread != nullptr){
@@ -221,7 +205,6 @@ int main (int argc, char *argv[])
     DBus::_init_threading();
 
     gst_init(&argc, &argv);
-    run_on_thread_main_context = g_main_context_new();
 
     printf("DBus::Glib::BusDispatcher attached\n");
 
@@ -286,8 +269,6 @@ int main (int argc, char *argv[])
     delete blmsystem_client;
     dispatcher.leave();
     dbus_thread.join();
-    g_main_context_unref(run_on_thread_main_context);
-    run_on_thread_main_context = nullptr;
 
     return ret;
 }

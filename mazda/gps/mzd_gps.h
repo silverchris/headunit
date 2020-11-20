@@ -4,8 +4,7 @@
 #include <functional>
 #include <condition_variable>
 #include <dbus-c++/dbus.h>
-
-
+#include <glib.h>
 
 struct GPSData
 {
@@ -29,6 +28,5 @@ void mzd_gps2_set_enabled(bool bEnabled);
 
 void mzd_gps2_stop();
 
-void gps_thread_func(std::condition_variable *quitcv, std::mutex *quitmutex, DBus::Connection *serviceBus, std::atomic<bool> *exiting);
-
+gboolean gps_func(gpointer user_data);
 
